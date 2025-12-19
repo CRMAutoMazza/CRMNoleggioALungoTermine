@@ -1,0 +1,80 @@
+{
+  "name": "crm",
+  "private": true,
+  "description": "AutoMazza CRM Application",
+  "author": "AutoMazza",
+  "version": "0.0.6",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "electron": "wait-on tcp:5173 && cross-env NODE_ENV=development electron .",
+    "electron:pack": "electron-builder --dir",
+    "electron:dist": "electron-builder",
+    "package": "electron-packager . \"AutoMazza CRM\" --platform=win32 --arch=x64 --out=dist-app --overwrite",
+    "dev:electron": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"npm run electron\""
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
+    "@supabase/supabase-js": "^2.89.0",
+    "app-builder-bin": "^5.0.0-alpha.12",
+    "clsx": "^2.1.1",
+    "emailjs-com": "^3.2.0",
+    "imap-simple": "^5.1.0",
+    "lodash": "^4.17.21",
+    "lucide-react": "^0.561.0",
+    "mailparser": "^3.9.1",
+    "nodemailer": "^7.0.11",
+    "papaparse": "^5.5.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-grid-layout": "^2.1.0",
+    "react-router-dom": "^7.10.1",
+    "read-excel-file": "^6.0.1",
+    "tailwind-merge": "^3.4.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^10.4.23",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
+    "electron-packager": "^17.1.2",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "vite": "^7.2.4",
+    "wait-on": "^9.0.3"
+  },
+  "build": {
+    "appId": "com.automazza.crm",
+    "productName": "AutoMazza CRM",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/icon.ico",
+      "verifyUpdateCodeSignature": false,
+      "forceCodeSigning": false
+    }
+  }
+}
