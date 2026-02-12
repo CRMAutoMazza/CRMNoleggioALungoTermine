@@ -1,10 +1,11 @@
 
 const http = require('http');
 
-const port = process.env.PORT || 3000;
+// Force Port 3000 to match Dockerfile EXPOSE
+const port = 3000;
 
 console.log(`[SANITY] Starting simple server... TIMESTAMP: ${new Date().toISOString()}`);
-console.log(`[SANITY] PORT: ${port}`);
+console.log(`[SANITY] PORT: ${port} (Forced)`);
 console.log(`[SANITY] Binding to 0.0.0.0`);
 
 const server = http.createServer((req, res) => {
