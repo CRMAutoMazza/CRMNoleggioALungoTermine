@@ -37,6 +37,17 @@ async function bootstrap() {
             res.send('Backend Online - AutoMazza CRM');
         });
 
+        // RAW LOGGING for debugging 502
+        const expressApp = app.getHttpAdapter().getInstance();
+        expressApp.use((req, res, next) => {
+            console.log(`[RAW] Request: ${req.method} ${req.url} from ${req.ip}`);
+            next();
+        });
+        expressApp.get('/ping', (req, res) => {
+            console.log('[RAW] /ping hit!');
+            res.status(200).send('pong');
+        });
+
         app.enableCors({
             origin: true,
             methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
