@@ -29,7 +29,7 @@ async function bootstrap() {
         fs.appendFileSync(logPath, `PORT: ${process.env.PORT}\n`);
         fs.appendFileSync(logPath, `DATABASE_URL available: ${!!process.env.DATABASE_URL}\n`);
 
-        const app = await NestFactory.create(AppModule);
+        const app = await NestFactory.create(AppModule, { bodyParser: false });
         console.log('[MAIN] NestFactory created.');
 
         // Simple Health Check for Railway
