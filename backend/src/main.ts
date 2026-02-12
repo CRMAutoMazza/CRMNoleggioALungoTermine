@@ -58,7 +58,14 @@ async function bootstrap() {
         const port = Number(process.env.PORT) || 3000;
         console.log(`[MAIN] Attempting to listen on port: ${port}`);
 
-        await app.listen(port, '0.0.0.0');
+        //         await app.listen(port, '0.0.0.0');
+
+        const serverInstance = await app.listen(port, '0.0.0.0');
+
+        // FIX: Node.js default Keep-Alive (5s) is too short for Load Balancers (60s+)
+        // This causes 502 errors because the server closes the connection while LB waits.
+        serverInstance.keepAliveTimeout = 120000; // 120 seconds
+        serverInstance.headersTimeout = 120000;   // 120 seconds
 
         const server = app.getHttpServer();
         const address = server.address();
