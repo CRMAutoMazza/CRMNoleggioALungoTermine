@@ -13,11 +13,11 @@ export class LeadsService implements OnModuleInit {
         // this.syncLeads(); // Initial sync (Disabled to prevent startup timeout)
 
         // Sync every 60 seconds
-        setInterval(() => {
-            if (!this.isSyncing) {
-                this.syncLeads();
-            }
-        }, 60000);
+        // setInterval(() => {
+        //    if (!this.isSyncing) {
+        //        this.syncLeads();
+        //    }
+        // }, 60000);
     }
 
     private log(message: string) {
