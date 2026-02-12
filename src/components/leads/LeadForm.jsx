@@ -7,31 +7,37 @@ const LeadForm = ({ onClose, initialData = null }) => {
     const { addLead, updateLead, fields } = useCRM();
     const { addToast } = useToast();
 
-    const [formData, setFormData] = useState({
-        firstName: '',
-        lastName: '',
-        email: '',
-        status: 'new',
-        data: {},
-        documents: []
+    const [formData, setFormData] = useState(() => {
+        if (initialData) {
+            return JSON.parse(JSON.stringify(initialData)); // Deep copy to avoid reference issues
+        }
+        return {
+            firstName: '',
+            lastName: '',
+            email: '',
+            status: 'new',
+            data: {},
+            documents: []
+        };
     });
 
-    useEffect(() => {
-        if (initialData) {
-            setFormData(initialData);
-        }
-    }, [initialData]);
+    // Removed useEffect that resets formData on initialData change to prevent overwriting user input during polling updates
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        if (initialData) {
-            updateLead(initialData.id, formData);
-            addToast('Lead aggiornato con successo', 'success');
-        } else {
-            addLead(formData);
-            addToast('Nuovo lead creato', 'success');
+        try {
+            if (initialData) {
+                await updateLead(initialData.id, formData);
+                addToast('Lead aggiornato con successo', 'success');
+            } else {
+                await addLead(formData);
+                addToast('Nuovo lead creato', 'success');
+            }
+            onClose();
+        } catch (error) {
+            console.error(error);
+            addToast('Errore durante il salvataggio', 'error');
         }
-        onClose();
     };
 
     const handleDynamicChange = (fieldId, value) => {
@@ -230,7 +236,7 @@ const LeadForm = ({ onClose, initialData = null }) => {
                         </div>
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-6 border-t border-white/5 sticky bottom-0 bg-slate-900/80 backdrop-blur-xl -mx-6 px-6 pb-2">
+                    <div className="flex justify-end gap-3 pt-6 border-t border-white/5 sticky bottom-0 bg-slate-900/80 backdrop-blur-xl -mx-6 px-6 pb-4 md:pb-6">
                         <button
                             type="button"
                             onClick={onClose}

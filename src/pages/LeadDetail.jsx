@@ -8,16 +8,17 @@ import {
     ArrowLeft, Mail, Phone, MessageCircle, Calendar,
     FileText, CheckCircle, AlertCircle, Clock, Plus,
     Briefcase, FileCheck, Trash2, Send, Edit, MoreVertical, Bell,
-    CornerUpLeft, CornerUpRight, Upload, X, Download, Hash
+    CornerUpLeft, CornerUpRight, Upload, X, Download, Hash, User
 } from 'lucide-react';
 import { useCRM } from '../context/CRMContext';
 import { useToast } from '../context/ToastContext';
 import { useReminders } from '../context/RemindersContext';
+import { openWhatsApp } from '../utils/whatsapp';
 
 const LeadDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { leads, updateLead, deleteLead, addTimelineEvent, deleteTimelineEvent, addContract, deleteContract, addPractice } = useCRM();
+    const { leads, updateLead, deleteLead, addTimelineEvent, deleteTimelineEvent, addContract, deleteContract, addPractice, fields } = useCRM();
     const { addToast } = useToast();
     const { reminders, toggleReminder, deleteReminder } = useReminders();
     const [isUploading, setIsUploading] = useState(false);
@@ -199,72 +200,74 @@ const LeadDetail = () => {
         const file = e.target.files[0];
         if (file) {
             setIsUploading(true);
-            const reader = new FileReader();
-            reader.onloadend = async () => {
-                try {
-                    const { ipcRenderer } = window.require('electron');
-                    const relativePath = `leads/${lead.id}`; // Folder per lead
+            // Unified Logic: Upload via Backend API
+            // Note: api.uploadFile sends the raw file object. 
+            // We don't strictly need FileReader unless for preview but we'll use it to keep structure if needed or just skip.
+            // Actually, we can just call the API directly.
 
-                    const result = await ipcRenderer.invoke('save-document', {
-                        folderPath: relativePath,
-                        fileName: file.name,
-                        data: reader.result
+            try {
+                const result = await api.uploadFile(file);
+
+                if (result.success) {
+                    const newDoc = {
+                        name: file.name,
+                        type: file.type,
+                        path: result.url, // Backend returns relative URL
+                        date: new Date().toISOString()
+                    };
+
+                    const updatedDocs = [...(lead.documents || []), newDoc];
+                    updateLead(lead.id, { documents: updatedDocs });
+
+                    addTimelineEvent(lead.id, {
+                        type: 'file-text',
+                        description: `Caricato documento: ${file.name}`,
+                        icon: 'file-text'
                     });
 
-                    if (result.success) {
-                        const newDoc = {
-                            name: file.name,
-                            type: file.type,
-                            path: result.path, // Store the relative path instead of full data
-                            date: new Date().toISOString()
-                        };
-
-                        const updatedDocs = [...(lead.documents || []), newDoc];
-                        updateLead(lead.id, { documents: updatedDocs });
-
-                        addTimelineEvent(lead.id, {
-                            type: 'file-text',
-                            description: `Caricato documento: ${file.name}`,
-                            icon: 'file-text'
-                        });
-
-                        addToast('Documento caricato con successo', 'success');
-                    } else {
-                        addToast('Errore salvataggio file: ' + result.error, 'error');
-                    }
-                } catch (error) {
-                    console.error('Frontend Upload Error', error);
-                    addToast('Errore durante il caricamento', 'error');
-                } finally {
-                    setIsUploading(false);
+                    addToast('Documento caricato con successo', 'success');
+                } else {
+                    addToast('Errore salvataggio file', 'error');
                 }
-            };
-            reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Frontend Upload Error', error);
+                addToast('Errore durante il caricamento: ' + error.message, 'error');
+            } finally {
+                setIsUploading(false);
+            }
         }
     };
 
     const handleOpenDocument = async (doc) => {
         try {
-            const { ipcRenderer } = window.require('electron');
-            // If doc has 'path', use it (new system). If found 'data' (old system), try to show it? 
-            // Better to just support new system for now, old docs will remain as legacy.
-            // If the user tries to open an old doc that is base64, we can fallback to old method?
-
+            // Strategy 1: URL (Standard Web)
             if (doc.path) {
-                const success = await ipcRenderer.invoke('open-file', doc.path);
-                if (!success) addToast('Impossibile aprire il file', 'error');
-            } else if (doc.data) {
-                // Legacy Base64 support
+                // If it's a relative path from uploads, prepend API URL
+                if (doc.path.startsWith('/uploads') || !doc.path.startsWith('http')) {
+                    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                    const fullPath = doc.path.startsWith('/') ? `${baseUrl}${doc.path}` : `${baseUrl}/${doc.path}`;
+                    window.open(fullPath, '_blank');
+                } else {
+                    window.open(doc.path, '_blank');
+                }
+                return;
+            }
+
+            // Strategy 2: Legacy Base64
+            if (doc.data) {
                 const link = document.createElement('a');
                 link.href = doc.data;
                 link.download = doc.name;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-            } else {
-                addToast('File non trovato', 'error');
+                return;
             }
+
+            addToast('File non trovato o percorso non valido', 'error');
+
         } catch (error) {
+            console.error('Error opening document:', error);
             addToast('Errore apertura file', 'error');
         }
     };
@@ -374,27 +377,62 @@ const LeadDetail = () => {
                 {/* Left Column: Timeline & Overview */}
                 <div className="lg:col-span-2 space-y-6">
 
+                    {/* Customer Profile at a Glance */}
+                    <div className="glass-panel p-6 rounded-2xl animate-in fade-in slide-in-from-bottom-2">
+                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                            <User className="w-5 h-5 text-blue-400" />
+                            Anagrafica Cliente
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                            <div>
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome Completo</span>
+                                <p className="text-sm text-white font-medium mt-0.5">{lead.firstName} {lead.lastName}</p>
+                            </div>
+                            <div>
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email</span>
+                                <p className="text-sm text-white font-medium mt-0.5">{lead.email}</p>
+                            </div>
+                            {fields.map(field => {
+                                const value = lead.data?.[field.id] || (lead.data?.data?.[field.id]);
+                                if (!value) return null;
+                                return (
+                                    <div key={field.id} className="min-w-0">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{field.label}</span>
+                                        <p className="text-sm text-white font-medium mt-0.5 break-words">
+                                            {typeof value === 'object' ? JSON.stringify(value) : value}
+                                        </p>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
                     {/* Quick Actions */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <button onClick={handleLogCall} className="glass-panel p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-white/5 transition-colors group">
+                        <a href={`tel:${lead.data?.phone}`} className="glass-panel p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-white/5 transition-colors group">
                             <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center text-green-400 group-hover:scale-110 transition-transform">
                                 <Phone className="w-5 h-5" />
                             </div>
-                            <span className="text-sm font-medium text-slate-300">Log Chiamata</span>
-                        </button>
-                        <button onClick={() => setEmailModalOpen(true)} className="glass-panel p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-white/5 transition-colors group">
+                            <span className="text-sm font-medium text-slate-300">Chiama</span>
+                        </a>
+                        <a href={`mailto:${lead.email}`} className="glass-panel p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-white/5 transition-colors group">
                             <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
                                 <Mail className="w-5 h-5" />
                             </div>
-                            <span className="text-sm font-medium text-slate-300">Invia Email</span>
-                        </button>
+                            <span className="text-sm font-medium text-slate-300">Email</span>
+                        </a>
                         <div className="flex flex-col gap-2">
-                            <button onClick={() => navigate(`/whatsapp?phone=${lead.data?.phone}`)} className="glass-panel p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-white/5 transition-colors group h-full">
+                            <a
+                                href={`https://wa.me/${lead.data?.phone?.replace(/[^0-9]/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="glass-panel p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-white/5 transition-colors group h-full justify-center"
+                            >
                                 <div className="w-10 h-10 rounded-full bg-green-400/20 flex items-center justify-center text-green-400 group-hover:scale-110 transition-transform">
                                     <MessageCircle className="w-5 h-5" />
                                 </div>
-                                <span className="text-sm font-medium text-slate-300">Apri Chat</span>
-                            </button>
+                                <span className="text-sm font-medium text-slate-300">WhatsApp</span>
+                            </a>
                             <button onClick={handleLogWhatsApp} className="text-[10px] text-slate-500 hover:text-green-400 uppercase tracking-wider font-bold">
                                 + Registra
                             </button>
@@ -551,37 +589,6 @@ const LeadDetail = () => {
                             </button>
                         </div>
 
-                        {showReminderForm && (
-                            <form onSubmit={handleAddReminder} className="mb-4 bg-yellow-500/10 p-3 rounded-xl space-y-2 animate-in fade-in slide-in-from-top-2">
-                                <input
-                                    type="text"
-                                    placeholder="Cosa ricordare?"
-                                    className="w-full glass-input rounded-lg px-3 py-2 text-sm text-white bg-slate-900/50 border-yellow-500/20 focus:border-yellow-500/50"
-                                    value={newReminder.title}
-                                    onChange={e => setNewReminder({ ...newReminder, title: e.target.value })}
-                                    required
-                                />
-                                <div className="flex gap-2">
-                                    <input
-                                        type="date"
-                                        className="w-full glass-input rounded-lg px-3 py-2 text-sm text-white bg-slate-900/50 border-yellow-500/20 focus:border-yellow-500/50"
-                                        value={newReminder.date}
-                                        onChange={e => setNewReminder({ ...newReminder, date: e.target.value })}
-                                        required
-                                    />
-                                    <input
-                                        type="time"
-                                        className="w-full glass-input rounded-lg px-3 py-2 text-sm text-white bg-slate-900/50 border-yellow-500/20 focus:border-yellow-500/50"
-                                        value={newReminder.time}
-                                        onChange={e => setNewReminder({ ...newReminder, time: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <button type="submit" className="w-full bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-bold py-2 rounded-lg transition-colors">
-                                    Salva Promemoria
-                                </button>
-                            </form>
-                        )}
 
                         <div className="space-y-3">
                             {reminders.filter(r => r.leadId === lead.id && !r.completed).length > 0 ? (

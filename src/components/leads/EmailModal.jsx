@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { X, Send, Paperclip, Mail, AlertCircle } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { useCRM } from '../../context/CRMContext';
+import { api } from '../../services/api';
 
 const EmailModal = ({ lead, onClose, initialData = null }) => {
     const { addToast } = useToast();
-    const { emailSettings, addTimelineEvent } = useCRM();
+    const { emailSettings, addTimelineEvent, leads } = useCRM();
 
     // Determine subject and message based on initialData (Reply/Forward)
     const getInitialSubject = () => {
@@ -49,49 +50,46 @@ const EmailModal = ({ lead, onClose, initialData = null }) => {
         e.preventDefault();
         setIsSending(true);
 
-        if (isConfigured) {
-            try {
-                // Use IPC to send email via Main Process (Nodemailer)
-                // We use window.require to access electron in the renderer process (nodeIntegration: true)
-                const { ipcRenderer } = window.require('electron');
-
-                const result = await ipcRenderer.invoke('send-email', {
-                    settings: emailSettings,
-                    email: {
-                        to: recipientEmail,
-                        subject: subject,
-                        message: message
-                    }
-                });
-
-                if (result.success) {
-                    addToast(`Email inviata a ${recipientEmail}`, 'success');
-                    if (lead) {
-                        addTimelineEvent(lead.id, {
-                            type: 'mail',
-                            description: `Email inviata: ${subject}`,
-                            icon: 'mail',
-                            metadata: { to: recipientEmail, subject: subject }
-                        });
-                    }
-                    onClose();
-                } else {
-                    console.error('SMTP Error:', result.error);
-                    addToast(`Errore invio: ${result.error}`, 'error');
+        // Unified Logic: Use Backend API
+        try {
+            await api.sendMail({
+                settings: emailSettings,
+                email: {
+                    to: recipientEmail,
+                    subject: subject,
+                    message: message
                 }
-            } catch (error) {
-                console.error('IPC Error:', error);
-                addToast('Errore di comunicazione con il processo principale.', 'error');
-            } finally {
-                setIsSending(false);
+            });
+
+            addToast(`Email inviata con successo`, 'success');
+
+            // Log to timeline
+            let targetLeadId = lead?.id;
+
+            if (!targetLeadId && recipientEmail && leads) {
+                const found = leads.find(l =>
+                    l.email?.toLowerCase() === recipientEmail.toLowerCase() ||
+                    l.data?.email?.toLowerCase() === recipientEmail.toLowerCase() ||
+                    l.data?.pec?.toLowerCase() === recipientEmail.toLowerCase()
+                );
+                if (found) targetLeadId = found.id;
             }
-        } else {
-            // Simulation Mode
-            setTimeout(() => {
-                addToast(`[SIMULAZIONE] Email inviata a ${recipientEmail}`, 'success');
-                setIsSending(false);
-                onClose();
-            }, 1000);
+
+            if (targetLeadId) {
+                addTimelineEvent(targetLeadId, {
+                    type: 'mail',
+                    description: `Email: ${subject}`,
+                    icon: 'mail',
+                    metadata: { to: recipientEmail, subject: subject }
+                });
+            }
+            onClose();
+
+        } catch (err) {
+            console.error('API Email Error', err);
+            addToast(`Errore invio email: ${err.message}`, 'error');
+        } finally {
+            setIsSending(false);
         }
     };
 

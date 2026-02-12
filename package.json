@@ -1,21 +1,18 @@
 {
-  "name": "crm",
+  "name": "crm-webapp",
   "private": true,
-  "description": "AutoMazza CRM Application",
+  "description": "AutoMazza CRM Web Application",
   "author": "AutoMazza",
-  "version": "0.0.6",
+  "version": "1.0.0",
   "type": "module",
-  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "electron": "wait-on tcp:5173 && cross-env NODE_ENV=development electron .",
-    "electron:pack": "electron-builder --dir",
-    "electron:dist": "electron-builder",
-    "package": "electron-packager . \"AutoMazza CRM\" --platform=win32 --arch=x64 --out=dist-app --overwrite",
-    "dev:electron": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"npm run electron\""
+    "start": "vite",
+    "electron:dev": "electron .",
+    "electron:dist": "npm run build && electron-builder"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
@@ -23,7 +20,6 @@
     "@capacitor/core": "^8.0.0",
     "@capacitor/ios": "^8.0.0",
     "@supabase/supabase-js": "^2.89.0",
-    "app-builder-bin": "^5.0.0-alpha.12",
     "clsx": "^2.1.1",
     "emailjs-com": "^3.2.0",
     "imap-simple": "^5.1.0",
@@ -48,18 +44,17 @@
     "autoprefixer": "^10.4.23",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
-    "electron": "^39.2.7",
-    "electron-builder": "^26.0.12",
-    "electron-packager": "^17.1.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
-    "vite": "^7.2.4",
-    "wait-on": "^9.0.3"
+    "vite": "^7.2.4"
   },
+  "main": "electron/main.cjs",
   "build": {
     "appId": "com.automazza.crm",
     "productName": "AutoMazza CRM",
@@ -70,11 +65,21 @@
       "dist/**/*",
       "electron/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "backend-staging",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "win": {
-      "target": "nsis",
-      "icon": "public/icon.ico",
-      "verifyUpdateCodeSignature": false,
-      "forceCodeSigning": false
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   }
 }

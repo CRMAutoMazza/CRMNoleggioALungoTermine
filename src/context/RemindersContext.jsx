@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useToast } from './ToastContext';
 import { useNotifications } from './NotificationContext';
+import { api } from '../services/api';
 
 const RemindersContext = createContext();
 
@@ -16,14 +17,21 @@ export const RemindersProvider = ({ children }) => {
     const { addToast } = useToast();
     const { addNotification } = useNotifications();
 
-    const [reminders, setReminders] = useState(() => {
-        const saved = localStorage.getItem('crm_reminders');
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [reminders, setReminders] = useState([]);
 
     useEffect(() => {
-        localStorage.setItem('crm_reminders', JSON.stringify(reminders));
-    }, [reminders]);
+        fetchReminders();
+    }, []);
+
+    const fetchReminders = async () => {
+        try {
+            const data = await api.getReminders();
+            // Data includes 'lead' object, we might want to flatten or use as is
+            setReminders(data);
+        } catch (error) {
+            console.error('Error fetching reminders:', error);
+        }
+    };
 
     // Background Scheduler
     useEffect(() => {
@@ -45,7 +53,7 @@ export const RemindersProvider = ({ children }) => {
                     // Send Email
                     if (emailSettings.host && emailSettings.user) {
                         try {
-                            const { ipcRenderer } = window.require('electron');
+                            const ipcRenderer = window.ipcRenderer;
                             await ipcRenderer.invoke('send-email', {
                                 settings: emailSettings,
                                 email: {
@@ -64,10 +72,13 @@ export const RemindersProvider = ({ children }) => {
                         addToast('Email non inviata: Configura SMTP nelle Impostazioni', 'warning');
                     }
 
-                    // Mark as sent to avoid spamming
-                    setReminders(prev => prev.map(r =>
-                        r.id === reminder.id ? { ...r, emailSent: true } : r
-                    ));
+                    // Mark as sent via API
+                    try {
+                        await api.updateReminder(reminder.id, { emailSent: true });
+                        setReminders(prev => prev.map(r =>
+                            r.id === reminder.id ? { ...r, emailSent: true } : r
+                        ));
+                    } catch (e) { console.error('Failed to update emailSent status', e); }
 
                     addToast(`Promemoria: ${reminder.title}`, 'info');
                 }
@@ -78,27 +89,56 @@ export const RemindersProvider = ({ children }) => {
         return () => clearInterval(interval);
     }, [reminders, addToast, addNotification]);
 
-    const addReminder = (reminder) => {
-        const newReminder = {
-            id: Date.now(),
-            completed: false,
-            emailSent: false,
-            createdAt: new Date().toISOString(),
-            ...reminder
-        };
-        setReminders(prev => [newReminder, ...prev]);
-        addToast('Promemoria aggiunto', 'success');
+    const addReminder = async (reminder) => {
+        try {
+            // Optimistic update (with temp ID)
+            const tempId = Date.now().toString();
+            const tempReminder = { ...reminder, id: tempId, completed: false, emailSent: false, createdAt: new Date().toISOString() };
+            setReminders(prev => [tempReminder, ...prev]);
+
+            const created = await api.createReminder(reminder);
+
+            // Replace with real data
+            setReminders(prev => prev.map(r => r.id === tempId ? created : r));
+            addToast('Promemoria aggiunto', 'success');
+        } catch (error) {
+            console.error('Error creating reminder:', error);
+            addToast('Errore creazione promemoria', 'error');
+            // Revert
+            fetchReminders();
+        }
     };
 
-    const toggleReminder = (id) => {
+    const toggleReminder = async (id) => {
+        const reminder = reminders.find(r => r.id === id);
+        if (!reminder) return;
+
+        const newState = !reminder.completed;
+
+        // Optimistic
         setReminders(prev => prev.map(r =>
-            r.id === id ? { ...r, completed: !r.completed } : r
+            r.id === id ? { ...r, completed: newState } : r
         ));
+
+        try {
+            await api.updateReminder(id, { completed: newState });
+        } catch (error) {
+            console.error('Error updating reminder:', error);
+            fetchReminders(); // Revert
+        }
     };
 
-    const deleteReminder = (id) => {
+    const deleteReminder = async (id) => {
+        // Optimistic
         setReminders(prev => prev.filter(r => r.id !== id));
         addToast('Promemoria eliminato', 'info');
+
+        try {
+            await api.deleteReminder(id);
+        } catch (error) {
+            console.error('Error deleting reminder:', error);
+            fetchReminders(); // Revert
+        }
     };
 
     return (

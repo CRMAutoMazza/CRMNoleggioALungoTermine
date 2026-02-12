@@ -19,9 +19,9 @@ body {
   line-height: 1.5;
   font-weight: 400;
 
-  /* Default Light Theme Colors */
-  --bg-primary: #f1f5f9;
-  /* Slate 100 */
+  /* Brand Theme Colors */
+  --bg-primary: #f8fafc;
+  /* Slate 50 */
   --bg-secondary: #ffffff;
   /* White */
   --text-primary: #0f172a;
@@ -29,11 +29,15 @@ body {
   --text-secondary: #64748b;
   /* Slate 500 */
 
-  --panel-bg: rgba(255, 255, 255, 0.7);
-  --panel-border: rgba(255, 255, 255, 0.5);
+  --panel-bg: rgba(255, 255, 255, 0.9);
+  --panel-border: rgba(226, 232, 240, 0.8);
 
-  --accent-color: #7c3aed;
-  /* Violet 600 */
+  --accent-color: #dc2626;
+  /* Red 600 - BRAND COLOR */
+  --accent-hover: #b91c1c;
+  /* Red 700 */
+  --accent-glow: rgba(220, 38, 38, 0.2);
+
   --border-color: #e2e8f0;
   /* Slate 200 */
 
@@ -42,17 +46,17 @@ body {
 
 /* Dark Mode Overrides */
 .dark {
-  --bg-primary: #0f172a;
-  /* Slate 950 */
-  --bg-secondary: #1e293b;
-  /* Slate 800 */
+  --bg-primary: #020617;
+  /* Slate 950 (Darker) */
+  --bg-secondary: #0f172a;
+  /* Slate 900 */
   --text-primary: #f8fafc;
   /* Slate 50 */
   --text-secondary: #94a3b8;
   /* Slate 400 */
 
-  --panel-bg: rgba(15, 23, 42, 0.6);
-  --panel-border: rgba(255, 255, 255, 0.1);
+  --panel-bg: rgba(15, 23, 42, 0.85);
+  --panel-border: rgba(255, 255, 255, 0.08);
 
   --border-color: #1e293b;
   /* Slate 800 */
@@ -79,16 +83,17 @@ body {
 /* Glassmorphism Classes (Dynamic) */
 .glass-panel {
   background: var(--panel-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--panel-border);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   transition: all 0.3s ease;
 }
 
 .glass-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   transition: all 0.2s ease;
 }
 
@@ -128,6 +133,32 @@ body {
   color: white;
 }
 
+
+.glass-input {
+  background: #ffffff;
+  /* Solid white for maximum readability in light mode */
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  transition: all 0.2s;
+}
+
+.dark .glass-input {
+  background: rgba(15, 23, 42, 0.8);
+  /* More opaque */
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.glass-input:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+  outline: none;
+}
+
+.glass-input::placeholder {
+  color: var(--text-secondary);
+}
+
 /* Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
@@ -148,7 +179,7 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--accent-color);
 }
 
 /* Utility Animations */

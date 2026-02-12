@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Settings as SettingsIcon, Mail, Save, Server } from 'lucide-react';
+import { Server, Save, Plus, Trash2, Settings as SettingsIcon, Kanban, ArrowUp, ArrowDown } from 'lucide-react';
 import { useCRM } from '../context/CRMContext';
 import { useToast } from '../context/ToastContext';
+import { api } from '../services/api';
 
 const Settings = () => {
-    const { fields, addField, removeField, emailSettings, updateEmailSettings } = useCRM();
+    const { fields, addField, removeField, moveField, emailSettings, updateEmailSettings, companyName, updateCompanyName, statuses, addStatus, deleteStatus, pipelines, addPipeline, deletePipeline } = useCRM();
     const { addToast } = useToast();
     const [newField, setNewField] = useState({ label: '', type: 'text', required: false });
     const [localEmailSettings, setLocalEmailSettings] = useState(emailSettings);
@@ -54,26 +55,47 @@ const Settings = () => {
                             </h3>
                             <div className="space-y-3">
                                 {fields.map((field) => (
-                                    <div key={field.id} className="flex items-center justify-between glass-card p-4 rounded-xl group border border-white/5 hover:border-white/10">
-                                        <div>
-                                            <h4 className="font-medium text-white">{field.label}</h4>
-                                            <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
-                                                <span className="uppercase bg-white/5 px-2 py-0.5 rounded border border-white/5">
-                                                    {field.type}
-                                                </span>
-                                                {field.required && (
-                                                    <span className="text-red-400 font-medium bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">Obbligatorio</span>
-                                                )}
+                                    <div key={field.id} className="flex items-center justify-between glass-card p-4 rounded-xl group border border-white/5 hover:border-white/10 transition-all">
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex flex-col gap-1">
+                                                <button
+                                                    onClick={() => moveField(field.id, 'up')}
+                                                    className="p-1 text-slate-500 hover:text-white hover:bg-white/10 rounded transition-colors"
+                                                    title="Sposta Su"
+                                                >
+                                                    <ArrowUp className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => moveField(field.id, 'down')}
+                                                    className="p-1 text-slate-500 hover:text-white hover:bg-white/10 rounded transition-colors"
+                                                    title="Sposta Giù"
+                                                >
+                                                    <ArrowDown className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div>
+                                                <h4 className="font-medium text-white">{field.label}</h4>
+                                                <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+                                                    <span className="uppercase bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                                                        {field.type}
+                                                    </span>
+                                                    {field.required && (
+                                                        <span className="text-red-400 font-medium bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">Obbligatorio</span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                        {!['phone', 'pec', 'address', 'city', 'referral', 'model', 'budget', 'contactTime', 'notes'].includes(field.id) && (
-                                            <button
-                                                onClick={() => handleRemoveField(field.id)}
-                                                className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        )}
+                                        <button
+                                            onClick={() => {
+                                                if (window.confirm(`Sei sicuro di voler eliminare il campo "${field.label}"? I dati esistenti per questo campo verranno nascosti.`)) {
+                                                    handleRemoveField(field.id);
+                                                }
+                                            }}
+                                            className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                            title="Elimina Campo"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -139,12 +161,12 @@ const Settings = () => {
                         <div className="bg-purple-500/20 p-2.5 rounded-xl">
                             <Server className="w-6 h-6 text-purple-400" />
                         </div>
-                        <h2 className="text-xl font-bold text-white">Configurazione SMTP (Aruba)</h2>
+                        <h2 className="text-xl font-bold text-white">Configurazione SMTP</h2>
                     </div>
 
                     <form onSubmit={handleSaveEmailSettings} className="space-y-5">
                         <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl text-sm text-purple-200 mb-4">
-                            Configura qui i parametri per inviare email tramite il tuo account Aruba (o altro provider SMTP).
+                            Configura qui i parametri per inviare email tramite il tuo provider (es. Gmail, Aruba, Outlook).
                         </div>
 
                         <div className="grid grid-cols-2 gap-5">
@@ -154,7 +176,7 @@ const Settings = () => {
                                     type="text"
                                     value={localEmailSettings.host}
                                     onChange={e => setLocalEmailSettings({ ...localEmailSettings, host: e.target.value })}
-                                    placeholder="smtps.aruba.it"
+                                    placeholder="smtp.example.com"
                                     className="w-full glass-input rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                                 />
                             </div>
@@ -163,9 +185,9 @@ const Settings = () => {
                                 <label className="text-sm font-medium text-slate-300">Host IMAP (Ricezione)</label>
                                 <input
                                     type="text"
-                                    value={localEmailSettings.imapHost || 'imaps.aruba.it'}
+                                    value={localEmailSettings.imapHost || ''}
                                     onChange={e => setLocalEmailSettings({ ...localEmailSettings, imapHost: e.target.value })}
-                                    placeholder="imaps.aruba.it"
+                                    placeholder="imap.example.com"
                                     className="w-full glass-input rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                                 />
                             </div>
@@ -176,20 +198,20 @@ const Settings = () => {
                                     type="number"
                                     value={localEmailSettings.port}
                                     onChange={e => setLocalEmailSettings({ ...localEmailSettings, port: e.target.value })}
-                                    placeholder="465 (Consigliata)"
+                                    placeholder="es. 465 o 587"
                                     className="w-full glass-input rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                                 />
-                                <p className="text-xs text-slate-500 mt-1">Usa 465 per SSL (Aruba), 587 per STARTTLS.</p>
+                                <p className="text-xs text-slate-500 mt-1">Usa 465 per SSL, 587 per TLS/STARTTLS.</p>
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-300">Email Mittente (Username)</label>
+                            <label className="text-sm font-medium text-slate-300">Email / Username</label>
                             <input
                                 type="email"
                                 value={localEmailSettings.user}
                                 onChange={e => setLocalEmailSettings({ ...localEmailSettings, user: e.target.value })}
-                                placeholder="tuo@dominio.it"
+                                placeholder="tu@dominio.com"
                                 className="w-full glass-input rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                             />
                         </div>
@@ -206,12 +228,12 @@ const Settings = () => {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-300">Nome Visualizzato (Opzionale)</label>
+                            <label className="text-sm font-medium text-slate-300">Nome Mittente (Opzionale)</label>
                             <input
                                 type="text"
                                 value={localEmailSettings.fromName}
                                 onChange={e => setLocalEmailSettings({ ...localEmailSettings, fromName: e.target.value })}
-                                placeholder="AutoMazza CRM"
+                                placeholder="Nome Azienda"
                                 className="w-full glass-input rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                             />
                         </div>
@@ -227,17 +249,18 @@ const Settings = () => {
                         <button
                             type="button"
                             onClick={async () => {
-                                const { ipcRenderer } = window.require('electron');
                                 const toastId = addToast('Verifica connessione in corso...', 'info');
                                 try {
-                                    const result = await ipcRenderer.invoke('verify-smtp', localEmailSettings);
+                                    // Unified Logic: Verify via Backend API
+                                    const result = await api.verifySmtp(localEmailSettings);
+
                                     if (result.success) {
                                         addToast('Connessione SMTP riuscita! ✅', 'success');
                                     } else {
                                         addToast(`Errore connessione: ${result.error}`, 'error');
                                     }
                                 } catch (error) {
-                                    addToast(`Errore IPC: ${error.message}`, 'error');
+                                    addToast(`Errore verifica: ${error.message}`, 'error');
                                 }
                             }}
                             className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-medium transition-all border border-slate-700 mt-2"
@@ -258,7 +281,18 @@ const Settings = () => {
 
                     <div className="space-y-6">
                         <div className="p-4 bg-pink-500/10 border border-pink-500/20 rounded-xl text-sm text-pink-200">
-                            Carica il logo della tua azienda per visualizzarlo nell'intestazione.
+                            Personalizza il nome e il logo della tua azienda.
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-300">Nome Azienda</label>
+                            <input
+                                type="text"
+                                value={companyName}
+                                onChange={e => updateCompanyName(e.target.value)}
+                                placeholder="La Tua Azienda"
+                                className="w-full glass-input rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50"
+                            />
                         </div>
 
                         <div className="space-y-4">
@@ -317,6 +351,168 @@ const Settings = () => {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Pipeline Management */}
+            <div className="glass-panel p-6 rounded-2xl border border-white/10 h-fit">
+                <div className="flex items-center gap-4 mb-6">
+                    <div className="bg-yellow-500/20 p-2.5 rounded-xl">
+                        <Kanban className="w-6 h-6 text-yellow-400" />
+                    </div>
+                    <h2 className="text-xl font-bold text-white">Gestione Pipeline</h2>
+                </div>
+
+                <div className="space-y-6">
+                    {/* Pipelines List */}
+                    <div className="space-y-2">
+                        <h3 className="text-sm font-bold text-slate-300">Le Tue Pipeline</h3>
+                        {pipelines.length === 0 && <p className="text-xs text-slate-500">Nessuna pipeline creata. La pipeline di default verrà generata automaticamente.</p>}
+                        {pipelines.map(pipeline => (
+                            <div key={pipeline.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-white">{pipeline.name}</span>
+                                        {pipeline.isDefault && (
+                                            <span className="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-500/30">DEFAULT</span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500">{pipeline.stages?.length || 0} fasi</p>
+                                </div>
+                                {!pipeline.isDefault && (
+                                    <button
+                                        onClick={() => {
+                                            if (window.confirm('Eliminare questa pipeline?')) deletePipeline(pipeline.id);
+                                        }}
+                                        className="p-2 hover:bg-red-500/20 text-slate-400 hover:text-red-500 rounded-lg transition-colors"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                const name = e.target.pipelineName.value;
+                                if (name) {
+                                    addPipeline(name);
+                                    e.target.reset();
+                                }
+                            }}
+                            className="flex gap-2 mt-2"
+                        >
+                            <input
+                                name="pipelineName"
+                                placeholder="Nuova Pipeline..."
+                                className="flex-1 glass-input px-3 py-2 rounded-lg text-white text-sm"
+                            />
+                            <button type="submit" className="bg-white/10 hover:bg-white/20 text-white px-3 rounded-lg">
+                                <Plus className="w-4 h-4" />
+                            </button>
+                        </form>
+                    </div>
+
+                    <div className="h-px bg-white/10" />
+
+                    {/* Stages Management (Targeting Default Pipeline for now) */}
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-bold text-slate-300">Fasi (Pipeline Default)</h3>
+                        <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-sm text-yellow-200">
+                            Gestisci le fasi del tuo processo di vendita. Puoi aggiungere nuove fasi o modificare quelle esistenti.
+                        </div>
+
+                        <div className="space-y-3">
+                            {statuses.map(status => (
+                                <div key={status.id} className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10 group">
+                                    <div className={`w-4 h-4 rounded-full ${status.color.split(' ')[0].replace('/10', '')}`} />
+                                    <div className="flex-1">
+                                        <p className="font-medium text-white">{status.label}</p>
+                                        <p className="text-xs text-slate-400">ID: {status.id}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            if (window.confirm('Eliminare questa fase? I lead in questa fase dovranno essere spostati.')) {
+                                                deleteStatus(status.id);
+                                            }
+                                        }}
+                                        className="p-2 hover:bg-red-500/20 text-slate-400 hover:text-red-500 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                const formData = new FormData(e.target);
+                                const label = formData.get('label');
+                                const color = formData.get('color');
+                                if (label) {
+                                    addStatus({
+                                        label,
+                                        color: `bg-${color}-500/10 text-${color}-500 border-${color}-500/20`
+                                    });
+                                    e.target.reset();
+                                }
+                            }}
+                            className="bg-slate-900/50 p-4 rounded-xl border border-white/10 space-y-3"
+                        >
+                            <h4 className="text-sm font-bold text-slate-300">Aggiungi Nuova Fase</h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                <input
+                                    name="label"
+                                    placeholder="Nome fase (es. In Negoziazione)"
+                                    className="col-span-2 glass-input px-3 py-2 rounded-lg text-white text-sm"
+                                    required
+                                />
+                                <div className="col-span-2 flex gap-2">
+                                    {['blue', 'yellow', 'purple', 'green', 'red', 'orange', 'pink', 'cyan'].map(c => (
+                                        <label key={c} className="cursor-pointer">
+                                            <input type="radio" name="color" value={c} className="peer sr-only" required />
+                                            <div className={`w-6 h-6 rounded-full bg-${c}-500 peer-checked:ring-2 peer-checked:ring-offset-2 ring-offset-slate-900 ring-white transition-all opacity-50 peer-checked:opacity-100`} />
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 text-sm font-medium">Aggiungi Fase</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            {/* Maintenance Section */}
+            <div className="glass-panel p-6 rounded-2xl border border-white/10 h-fit">
+                <div className="flex items-center gap-4 mb-6">
+                    <div className="bg-red-500/20 p-2.5 rounded-xl">
+                        <Server className="w-6 h-6 text-red-400" />
+                    </div>
+                    <h2 className="text-xl font-bold text-white">Manutenzione Dati</h2>
+                </div>
+
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-200 mb-4">
+                    Strumenti per la correzione di eventuali anomalie nei dati. Usare con cautela.
+                </div>
+
+                <button
+                    onClick={async () => {
+                        if (confirm('Sei sicuro? Questa operazione cercherà di correggere la struttura dati dei lead.')) {
+                            const toastId = addToast('Correzione in corso...', 'info');
+                            try {
+                                const result = await api.fixLeadsData();
+                                addToast(`Operazione completata: ${result.fixed} lead corretti.`, 'success');
+                            } catch (e) {
+                                addToast(`Errore: ${e.message}`, 'error');
+                            }
+                        }
+                    }}
+                    className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-medium transition-all border border-slate-700"
+                >
+                    <Server className="w-5 h-5" />
+                    Correggi Struttura Dati Lead
+                </button>
             </div>
         </div>
     );

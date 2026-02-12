@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Upload, FileSpreadsheet, Search, Trash2, PlusCircle, X } from 'lucide-react';
 import readXlsxFile from 'read-excel-file';
 import { useToast } from '../context/ToastContext';
+import { api } from '../services/api';
 
 const Offers = () => {
     const [offers, setOffers] = useState([]);
@@ -15,24 +16,32 @@ const Offers = () => {
     const DEFAULT_HEADERS = ['MARCA', 'MODELLO', 'VERSIONE', 'ANTICIPO', 'CANONE', 'DURATA', 'KM'];
 
     useEffect(() => {
-        const savedOffers = localStorage.getItem('offers_data');
-        if (savedOffers) {
-            try {
-                const parsed = JSON.parse(savedOffers);
-                setOffers(parsed.data || []);
-                setHeaders(parsed.headers || []);
-            } catch (e) {
-                console.error("Failed to load offers", e);
-            }
-        }
+        fetchOffers();
     }, []);
 
-    const saveToLocalStorage = (currentHeaders, currentOffers) => {
-        localStorage.setItem('offers_data', JSON.stringify({
-            headers: currentHeaders,
-            data: currentOffers,
-            updatedAt: new Date().toISOString()
-        }));
+    const fetchOffers = async () => {
+        try {
+            const result = await api.getOffers();
+            if (result && result.data) {
+                setOffers(result.data);
+                setHeaders(result.headers || []);
+            }
+        } catch (error) {
+            console.error("Failed to load offers", error);
+            addToast('Errore caricamento offerte', 'error');
+        }
+    };
+
+    const saveToBackend = async (currentHeaders, currentOffers) => {
+        try {
+            await api.saveOffers({
+                headers: currentHeaders,
+                data: currentOffers
+            });
+        } catch (error) {
+            console.error("Failed to save offers", error);
+            addToast('Errore salvataggio offerte', 'error');
+        }
     };
 
     const handleFileUpload = async (e) => {
@@ -52,7 +61,8 @@ const Offers = () => {
 
             setHeaders(headerRow);
             setOffers(dataRows);
-            saveToLocalStorage(headerRow, dataRows);
+            // WEB APP: Save to Backend
+            saveToBackend(headerRow, dataRows);
 
             addToast(`Caricate ${dataRows.length} offerte`, 'success');
 
@@ -82,7 +92,8 @@ const Offers = () => {
 
         setHeaders(updatedHeaders);
         setOffers(updatedOffers);
-        saveToLocalStorage(updatedHeaders, updatedOffers);
+        // WEB APP: Save to Backend
+        saveToBackend(updatedHeaders, updatedOffers);
 
         setIsModalOpen(false);
         addToast('Offerta aggiunta manualmente', 'success');
@@ -92,7 +103,8 @@ const Offers = () => {
         if (window.confirm('Eliminare questa offerta?')) {
             const updatedOffers = offers.filter((_, i) => i !== index);
             setOffers(updatedOffers);
-            saveToLocalStorage(headers, updatedOffers);
+            // WEB APP: Save to Backend
+            saveToBackend(headers, updatedOffers);
             addToast('Offerta eliminata', 'info');
         }
     };
@@ -101,7 +113,9 @@ const Offers = () => {
         if (window.confirm('Sei sicuro di voler cancellare tutte le offerte?')) {
             setOffers([]);
             setHeaders([]);
-            localStorage.removeItem('offers_data');
+            // WEB APP: Save to Backend
+            saveToBackend([], []);
+            // localStorage.removeItem('offers_data'); // No longer needed
             addToast('Offerte cancellate', 'info');
         }
     };

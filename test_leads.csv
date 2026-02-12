@@ -1,0 +1,4 @@
+name,email,phone,message
+Giulio Testa,giulio@example.com,1234567890,This is a test lead from CSV
+Maria Rossi,maria@example.com,0987654321,Another test lead
+No Email,,1112223333,Only phone here

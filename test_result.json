@@ -1,0 +1,9 @@
+{
+  "status": 201,
+  "body": {
+    "success": true,
+    "total": 3,
+    "imported": 0,
+    "errors": 0
+  }
+}

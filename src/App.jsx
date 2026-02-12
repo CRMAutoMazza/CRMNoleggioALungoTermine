@@ -27,6 +27,7 @@ import Offers from './pages/Offers';
 import { AuthProvider } from './context/AuthContext';
 import Login from './pages/Login';
 import PrivateRoute from './components/common/PrivateRoute';
+import WhatsApp from './pages/WhatsApp';
 
 function App() {
   return (
@@ -54,7 +55,7 @@ function App() {
                                     <Route path="/leads" element={<Leads />} />
                                     <Route path="/leads/:id" element={<LeadDetail />} />
                                     <Route path="/inbox" element={<Inbox />} />
-                                    <Route path="/whatsapp" element={null} />
+                                    <Route path="/whatsapp" element={<WhatsApp />} />
                                     <Route path="/reminders" element={<Reminders />} />
                                     <Route path="/documents" element={<Documents />} />
                                     <Route path="/automations" element={<Automations />} />

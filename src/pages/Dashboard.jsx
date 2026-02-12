@@ -11,7 +11,7 @@ import TodoListWidget from '../components/dashboard/TodoListWidget';
 // Using standard CSS Grid/Flexbox for 100% stability.
 
 const StatCard = ({ title, value, change, icon: Icon, color, ...props }) => (
-    <div {...props} className="glass-card p-6 rounded-2xl relative overflow-hidden group h-32 flex flex-col justify-center bg-white shadow-sm border border-slate-200">
+    <div {...props} className="glass-card p-4 md:p-6 rounded-2xl relative overflow-hidden group h-32 flex flex-col justify-center bg-white shadow-sm border border-slate-200">
         <div className={`absolute top-0 right-0 p-3 rounded-bl-2xl ${color} bg-opacity-10 backdrop-blur-md transition-all group-hover:bg-opacity-20`}>
             <Icon className={`w-6 h-6 text-slate-700`} />
         </div>
@@ -49,7 +49,7 @@ const widgetDefinitions = [
 ];
 
 const Dashboard = () => {
-    const { leads } = useCRM();
+    const { leads, companyName } = useCRM();
     const { reminders } = useReminders();
     const navigate = useNavigate();
 
@@ -101,7 +101,7 @@ const Dashboard = () => {
 
             setLoadingEmails(true);
             try {
-                const { ipcRenderer } = window.require('electron');
+                const ipcRenderer = window.ipcRenderer;
                 const result = await ipcRenderer.invoke('fetch-emails', emailSettings);
                 if (result.success) {
                     setRecentEmails(result.emails.slice(0, 5));
@@ -146,7 +146,7 @@ const Dashboard = () => {
             <div className="flex items-end justify-between mb-6 flex-shrink-0 px-1">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Dashboard</h1>
-                    <p className="text-slate-500">Benvenuto in AutoMazza CRM.</p>
+                    <p className="text-slate-500">Benvenuto in {companyName} CRM.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     {isEditing ? (
@@ -207,7 +207,7 @@ const Dashboard = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar -mr-4 pr-4 pb-8">
-                <div className="grid grid-cols-12 gap-6 auto-rows-min">
+                <div className="grid grid-cols-12 gap-4 md:gap-6 auto-rows-min">
 
                     {/* Stats Row */}
                     {visibleWidgets.includes('stat-leads') && (
@@ -324,7 +324,7 @@ const Dashboard = () => {
                     {visibleWidgets.includes('leads-table') && (
                         <div className="col-span-12 relative group">
                             <RemoveButton id="leads-table" />
-                            <div className="glass-card p-8 h-full relative overflow-hidden flex flex-col bg-white shadow-sm border border-slate-200 rounded-2xl">
+                            <div className="glass-card p-4 md:p-8 h-full relative overflow-hidden flex flex-col bg-white shadow-sm border border-slate-200 rounded-2xl">
                                 <div className="flex items-center justify-between mb-8">
                                     <h2 className="text-2xl font-bold text-slate-900">Lead Recenti</h2>
                                     <button onClick={() => navigate('/leads')} className="glass-button px-4 py-2 rounded-xl text-sm font-bold text-slate-700 flex items-center gap-2">Vedi tutti <ArrowRight className="w-4 h-4" /></button>

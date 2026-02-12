@@ -28,8 +28,8 @@ const Inbox = () => {
         setLoading(true);
         setError(null);
         try {
-            const { ipcRenderer } = window.require('electron');
-            const result = await ipcRenderer.invoke('fetch-emails', emailSettings);
+            // WEB APP: Use API instead of IPC
+            const result = await api.fetchEmails(emailSettings);
 
             if (result.success) {
                 setEmails(result.emails);
@@ -40,7 +40,7 @@ const Inbox = () => {
             }
         } catch (err) {
             console.error(err);
-            setError('Errore di comunicazione con il server.');
+            setError('Errore di comunicazione con il server.' + err.message);
         } finally {
             setLoading(false);
         }
@@ -54,11 +54,8 @@ const Inbox = () => {
 
         setLoadingBody(true);
         try {
-            const { ipcRenderer } = window.require('electron');
-            const result = await ipcRenderer.invoke('fetch-email-body', {
-                settings: emailSettings,
-                uid: email.id
-            });
+            // WEB APP: Use API instead of IPC
+            const result = await api.fetchEmailBody(emailSettings, email.id);
 
             if (result.success) {
                 // Update the email in the list with the full body
@@ -226,11 +223,8 @@ const Inbox = () => {
 
                                             setDeletingId(selectedEmail.id);
                                             try {
-                                                const { ipcRenderer } = window.require('electron');
-                                                const result = await ipcRenderer.invoke('delete-email', {
-                                                    settings: emailSettings,
-                                                    uid: selectedEmail.id
-                                                });
+                                                // WEB APP: Use API instead of IPC
+                                                const result = await api.deleteEmail(emailSettings, selectedEmail.id);
 
                                                 if (result.success) {
                                                     addToast('Email eliminata', 'success');

@@ -29,5 +29,6 @@ dist-ssr
 backend/.env
 
 # Build Output
+# Build Output
 dist-electron
 release

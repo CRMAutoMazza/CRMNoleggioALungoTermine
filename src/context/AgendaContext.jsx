@@ -51,7 +51,7 @@ export const AgendaProvider = ({ children }) => {
                 for (const event of pendingEvents) {
                     if (emailSettings.host && emailSettings.user) {
                         try {
-                            const { ipcRenderer } = window.require('electron');
+                            const ipcRenderer = window.ipcRenderer;
                             await ipcRenderer.invoke('send-email', {
                                 settings: emailSettings,
                                 email: {

@@ -3,16 +3,21 @@ import { LayoutDashboard, Users, Settings, LogOut, Car, Inbox, FolderOpen, Messa
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../context/ThemeContext';
+import { useCRM } from '../../context/CRMContext';
 
 const Sidebar = ({ onClose }) => {
     const location = useLocation();
     const { theme, toggleTheme } = useTheme();
+    const { companyName, isElectron } = useCRM();
 
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
         { icon: Users, label: 'Leads', path: '/leads' },
-        { icon: Inbox, label: 'Posta in Arrivo', path: '/inbox' },
-        { icon: MessageCircle, label: 'WhatsApp', path: '/whatsapp' },
+        // Only show full management tabs on PC (Electron)
+        ...(isElectron ? [
+            { icon: Inbox, label: 'Posta in Arrivo', path: '/inbox' },
+            { icon: MessageCircle, label: 'WhatsApp', path: '/whatsapp' },
+        ] : []),
         { icon: Calendar, label: 'Agenda', path: '/agenda' },
         { icon: Tag, label: 'Offerte', path: '/offers' },
         { icon: Bell, label: 'Promemoria', path: '/reminders' },
@@ -26,13 +31,21 @@ const Sidebar = ({ onClose }) => {
             {/* Ambient Glow */}
             <div className="absolute top-0 left-0 w-full h-32 bg-purple-100/50 dark:bg-purple-900/20 blur-3xl pointer-events-none" />
 
-            <div className="p-6 flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 relative z-10">
-                <div className="flex items-center gap-3">
-                    <div className="bg-gradient-to-br from-purple-600 to-blue-600 p-2.5 rounded-xl shadow-lg shadow-purple-500/20">
-                        <Car className="w-6 h-6 text-white" />
-                    </div>
-                    <span className="text-xl font-bold bg-gradient-to-r from-purple-700 to-blue-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
-                        AutoMazza
+            <div className="p-4 md:p-6 flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 relative z-10">
+                <div className="flex items-center gap-3 overflow-hidden">
+                    {localStorage.getItem('company_logo') ? (
+                        <img
+                            src={localStorage.getItem('company_logo')}
+                            alt="Logo"
+                            className="w-10 h-10 object-contain"
+                        />
+                    ) : (
+                        <div className="bg-gradient-to-br from-red-600 to-slate-800 p-2.5 rounded-xl shadow-lg shadow-red-500/20 flex-shrink-0">
+                            <Car className="w-6 h-6 text-white" />
+                        </div>
+                    )}
+                    <span className="text-xl font-bold bg-gradient-to-r from-red-600 to-slate-800 dark:from-white dark:to-slate-400 bg-clip-text text-transparent truncate" title={companyName}>
+                        {companyName}
                     </span>
                 </div>
                 {/* Mobile Close Button */}

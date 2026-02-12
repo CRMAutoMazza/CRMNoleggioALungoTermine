@@ -121,7 +121,7 @@ export const AutomationProvider = ({ children }) => {
             let res = text || '';
             res = res.replace(/{firstName}/g, lead.firstName || '');
             res = res.replace(/{lastName}/g, lead.lastName || '');
-            res = res.replace(/{company}/g, 'AutoMazza'); // Global constant
+            res = res.replace(/{company}/g, localStorage.getItem('company_name') || 'Azienda');
             if (contract) {
                 res = res.replace(/{contractTitle}/g, contract.title || '');
                 res = res.replace(/{endDate}/g, new Date(contract.endDate).toLocaleDateString() || '');
@@ -145,7 +145,7 @@ export const AutomationProvider = ({ children }) => {
                 const settings = settingsStr ? JSON.parse(settingsStr) : null;
 
                 if (settings && settings.host) {
-                    const { ipcRenderer } = window.require('electron');
+                    const ipcRenderer = window.ipcRenderer;
                     await ipcRenderer.invoke('send-email', {
                         settings,
                         email: { to: toEmail, subject: compiledSubject, message: compiledBody }
@@ -179,12 +179,17 @@ export const AutomationProvider = ({ children }) => {
                 // Or try shell.openExternal
 
                 try {
-                    const { shell } = window.require('electron');
+                    const shell = window.shell;
                     const cleanPhone = phone.replace(/\D/g, '');
                     const url = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(compiledMessage)}`;
 
-                    shell.openExternal(url);
-                    addToast(`Automazione: WhatsApp aperto per ${lead.firstName}`, 'success');
+                    if (shell && shell.openExternal) {
+                        shell.openExternal(url);
+                        addToast(`Automazione: WhatsApp aperto per ${lead.firstName}`, 'success');
+                    } else {
+                        // Fallback
+                        window.open(url, '_blank');
+                    }
                 } catch (e) {
                     console.error('Error opening WhatsApp', e);
                     addToast('Errore apertura WhatsApp', 'error');

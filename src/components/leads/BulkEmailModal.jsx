@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Send, Paperclip, Mail, AlertCircle, CheckCircle } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { useCRM } from '../../context/CRMContext';
+import { api } from '../../services/api';
 
 const BulkEmailModal = ({ recipients, onClose }) => {
     const { addToast } = useToast();
@@ -28,17 +29,16 @@ const BulkEmailModal = ({ recipients, onClose }) => {
         let sentCount = 0;
         let failedCount = 0;
 
-        const { ipcRenderer } = window.require('electron');
-
         for (const recipient of validRecipients) {
             try {
                 // Personalize message
                 const personalizedMessage = message
-                    .replace(/{nome}/g, recipient.firstName || '')
-                    .replace(/{cognome}/g, recipient.lastName || '');
+                    .replace(/{nome}/g, recipient.name || '')
+                    .replace(/{azienda}/g, recipient.company || '');
 
                 if (isConfigured) {
-                    const result = await ipcRenderer.invoke('send-email', {
+                    // WEB APP: API Call
+                    const result = await api.sendMail({
                         settings: emailSettings,
                         email: {
                             to: recipient.email,
@@ -47,19 +47,15 @@ const BulkEmailModal = ({ recipients, onClose }) => {
                         }
                     });
 
-                    if (result.success) {
-                        sentCount++;
-                        // Log event
-                        addTimelineEvent(recipient.id, {
-                            type: 'mail',
-                            description: `Newsletter inviata: ${subject}`,
-                            icon: 'mail',
-                            metadata: { to: recipient.email, subject: subject, isBulk: true }
-                        });
-                    } else {
-                        failedCount++;
-                        console.error(`Failed to send to ${recipient.email}:`, result.error);
-                    }
+                    sentCount++;
+                    // Log event
+                    addTimelineEvent(recipient.id, {
+                        type: 'mail',
+                        description: `Newsletter inviata: ${subject}`,
+                        icon: 'mail',
+                        metadata: { to: recipient.email, subject: subject, isBulk: true }
+                    });
+
                 } else {
                     // Simulation
                     await new Promise(r => setTimeout(r, 500)); // Delay

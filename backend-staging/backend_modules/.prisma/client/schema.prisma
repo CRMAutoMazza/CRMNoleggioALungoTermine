@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   @default("user") // admin, user
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenantId String?
+}
+
+model Lead {
+  id        String   @id @default(uuid())
+  firstName String
+  lastName  String
+  email     String
+  status    String   @default("new") // new, contacted, quote, order, lost
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Flexible data for dynamic fields
+  data Json?
+
+  // Relations
+  tags      String[]
+  timeline  TimelineEvent[]
+  contracts Contract[]
+  practices Practice[]
+  documents Document[]
+  reminders Reminder[]
+
+  // Pipeline Relation (Optional for migration compatibility)
+  pipelineId String?
+  pipeline   Pipeline?      @relation(fields: [pipelineId], references: [id])
+  stageId    String?
+  stage      PipelineStage? @relation(fields: [stageId], references: [id])
+
+  // Tenant Isolation
+  tenantId String?
+}
+
+model Pipeline {
+  id        String          @id @default(uuid())
+  name      String
+  isDefault Boolean         @default(false)
+  stages    PipelineStage[]
+  leads     Lead[]
+
+  tenantId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PipelineStage {
+  id    String @id @default(uuid())
+  name  String
+  color String @default("#000000")
+  order Int    @default(0)
+
+  pipelineId String
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  leads      Lead[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CustomField {
+  id         String @id @default(uuid())
+  name       String // Display Name e.g. "Tax ID"
+  key        String // Internal key e.g. "tax_id"
+  type       String // text, number, date, select, boolean
+  options    Json? // For select type: ["Option A", "Option B"]
+  entityType String // "lead", "contact", etc.
+
+  tenantId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TimelineEvent {
+  id     String @id @default(uuid())
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  type        String // call, mail, note, etc.
+  description String
+  date        DateTime @default(now())
+  icon        String?
+  metadata    Json? // Stores specific data like email subject, call outcome etc.
+}
+
+model Contract {
+  id     String @id @default(uuid())
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  title     String
+  amount    Float     @default(0)
+  startDate DateTime?
+  endDate   DateTime
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+}
+
+model Practice {
+  id     String @id @default(uuid())
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  title     String
+  status    String   @default("open")
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id     String @id @default(uuid())
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  name       String
+  type       String
+  path       String // S3 Key or Path
+  size       Int?
+  uploadedAt DateTime @default(now())
+}
+
+model Reminder {
+  id     String @id @default(uuid())
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  title     String
+  datetime  DateTime
+  completed Boolean  @default(false)
+  emailSent Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

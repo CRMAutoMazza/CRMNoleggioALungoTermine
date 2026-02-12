@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAutomation } from './AutomationContext';
 import { api } from '../services/api';
+import { useToast } from './ToastContext'; // Import Added
 
 const CRMContext = createContext();
 
@@ -22,6 +23,14 @@ const initialFields = [
     { id: 'budget', label: 'Budget', type: 'number', required: false },
     { id: 'contactTime', label: 'Orario di Contatto', type: 'time', required: false },
     { id: 'notes', label: 'Note', type: 'textarea', required: false },
+];
+
+const initialStatuses = [
+    { id: 'new', label: 'Da Contattare', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20' },
+    { id: 'contacted', label: 'Contattato', color: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' },
+    { id: 'quote', label: 'Preventivo', color: 'bg-purple-500/10 text-purple-500 border-purple-500/20' },
+    { id: 'order', label: 'Ordine', color: 'bg-green-500/10 text-green-500 border-green-500/20' },
+    { id: 'lost', label: 'Perso', color: 'bg-red-500/10 text-red-500 border-red-500/20' }
 ];
 
 const initialLeads = [
@@ -62,45 +71,101 @@ const initialLeads = [
 ];
 
 export const CRMProvider = ({ children }) => {
+    const { addToast } = useToast(); // Hook Usage
     // Keep local storage for fields/settings for now, or migrate later
-    const [fields, setFields] = useState(() => {
-        const saved = localStorage.getItem('crm_fields');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            const existingIds = new Set(parsed.map(f => f.id));
-            const missingDefaults = initialFields.filter(f => !existingIds.has(f.id));
-            return [...parsed, ...missingDefaults];
-        }
-        return initialFields;
-    });
-
     const [emailSettings, setEmailSettings] = useState(() => {
         const saved = localStorage.getItem('crm_email_settings');
+
         return saved ? JSON.parse(saved) : {
-            host: 'smtps.aruba.it',
-            imapHost: 'imaps.aruba.it',
-            port: '465',
+            host: '',
+            imapHost: '',
+            port: '',
             user: '',
             pass: '',
             fromName: ''
         };
     });
 
+    const updateEmailSettings = (settings) => {
+        setEmailSettings(settings);
+        localStorage.setItem('crm_email_settings', JSON.stringify(settings));
+    };
+
+
+    // Branding / Customization
+    const [companyName, setCompanyName] = useState(() => {
+        return localStorage.getItem('company_name') || 'CRM';
+    });
+
+    const updateCompanyName = (name) => {
+        setCompanyName(name);
+        localStorage.setItem('company_name', name);
+    };
+
     // LEADS MANAGEMENT - NOW VIA API
     const [leads, setLeads] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [currentView, setCurrentView] = useState('active'); // 'active' | 'trash'
     const { triggerEvent, checkTimeRules } = useAutomation();
+
+    // Electron Detection (Fallback to UserAgent or File Protocol)
+    // 'file:' protocol is a definitive check for packaged Electron app loading local resources
+    const isElectron = window.location.protocol === 'file:' || !!window.ipcRenderer || /Electron/i.test(navigator.userAgent);
 
     useEffect(() => {
         fetchLeads();
-    }, []);
+        const interval = setInterval(fetchLeads, 10000); // Polling every 10 seconds
+        return () => clearInterval(interval);
+    }, [currentView]);
+
+
+    // Sound helper
+    const playNotificationSound = () => {
+        try {
+            // Embedded "Glass" sound (short notification)
+            const base64Sound = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"; // Placeholder, using a real short one below or keeping remote if base64 too long? 
+            // Actually, for reliability, let's use a very short valid base64 or stick to a better URL.
+            // But user said "system of notifications improved". The issue is likely the remote URL failing.
+            // I will use a reliable high-uptime CDN or a local asset if I could write one.
+            // Since I cannot write binary easy, I will use a very standard reliable URL or the base64 idea.
+            // Let's use a Data URI for a short beep.
+
+            // Standard "Ding"
+            const audio = new Audio('https://cdn.freesound.org/previews/536/536108_11979291-lq.mp3');
+
+            audio.volume = 0.5;
+            audio.play().catch(e => console.error("Audio play failed", e));
+        } catch (e) { console.error("Sound error", e); }
+    };
 
     const fetchLeads = async () => {
         try {
-            const data = await api.getLeads();
+            const statusFilter = currentView === 'trash' ? 'trash' : undefined;
+            const data = await api.getLeads(statusFilter);
+
+            // Check for new leads (only in active view)
+            if (currentView === 'active' && !loading && data.length > leads.length) {
+                const diff = data.length - leads.length;
+                console.log(`[CRM] ${diff} new leads detected!`);
+
+                playNotificationSound();
+
+                if (window.Notification && Notification.permission === "granted") {
+                    new Notification("AutoMazza CRM", { body: `Hai ${diff} nuove richieste!` });
+                } else if (window.Notification && Notification.permission !== "denied") {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === "granted") {
+                            new Notification("AutoMazza CRM", { body: `Hai ${diff} nuove richieste!` });
+                        }
+                    });
+                }
+            }
+
             setLeads(data);
+            if (loading) addToast(`Leads aggiornati: ${data.length}`, 'success');
         } catch (error) {
             console.error('Error fetching leads:', error);
+            // Dont spam error toasts on polling, just log
         } finally {
             setLoading(false);
         }
@@ -110,8 +175,10 @@ export const CRMProvider = ({ children }) => {
         try {
             const newLead = await api.createLead(lead);
             setLeads(prev => [newLead, ...prev]);
+            return newLead;
         } catch (error) {
             console.error('Error creating lead:', error);
+            throw error;
         }
     };
 
@@ -141,10 +208,53 @@ export const CRMProvider = ({ children }) => {
 
     const deleteLead = async (id) => {
         try {
+            // If already in trash, permanent delete? 
+            // Current backend logic: delete() marks as trash.
+            // If status is trash, we might want permanent delete or just keep it there.
+            // For now, delete() on a 'trash' lead acts as permanent if we implemented it, 
+            // but backend remove() does soft delete.
+            // Let's assume deleteLead always moves to trash.
+
             await api.deleteLead(id);
             setLeads(prev => prev.filter(lead => lead.id !== id));
+            addToast(currentView === 'trash' ? 'Lead eliminato definitivamente' : 'Lead spostato nel cestino', 'success');
         } catch (error) {
             console.error('Error deleting lead:', error);
+        }
+    };
+
+    const restoreLead = async (id) => {
+        try {
+            // Use updateLead to set status to 'new'
+            await api.updateLead(id, { status: 'new' });
+            setLeads(prev => prev.filter(lead => lead.id !== id)); // Remove from trash view
+            addToast('Lead ripristinato', 'success');
+        } catch (error) {
+            console.error('Error restoring lead:', error);
+            addToast('Errore nel ripristino', 'error');
+        }
+    };
+
+    const bulkDeleteLeads = async (ids) => {
+        try {
+            await Promise.all(ids.map(id => api.deleteLead(id)));
+            setLeads(prev => prev.filter(lead => !ids.includes(lead.id)));
+        } catch (error) {
+            console.error('Error bulk deleting leads:', error);
+            fetchLeads();
+        }
+    };
+
+    const updateLeadsStatusBulk = async (ids, newStatus) => {
+        setLeads(prev => prev.map(lead =>
+            ids.includes(lead.id) ? { ...lead, status: newStatus } : lead
+        ));
+
+        try {
+            await Promise.all(ids.map(id => api.updateLead(id, { status: newStatus })));
+        } catch (error) {
+            console.error('Error bulk updating status:', error);
+            fetchLeads();
         }
     };
 
@@ -304,49 +414,206 @@ export const CRMProvider = ({ children }) => {
     };
 
 
-    // Fields & Settings persistence (Local Storage)
-    useEffect(() => {
-        localStorage.setItem('crm_fields', JSON.stringify(fields));
-    }, [fields]);
+    // FIELDS & PIPELINES MANAGEMENT (API BACKED)
+    const [fields, setFields] = useState([]);
+    const [pipelines, setPipelines] = useState([]);
+    const [statuses, setStatuses] = useState([]);
 
     useEffect(() => {
-        localStorage.setItem('crm_email_settings', JSON.stringify(emailSettings));
-    }, [emailSettings]);
+        fetchMetadata();
+    }, []);
 
-    const addField = (field) => {
-        const newField = { ...field, id: field.label.toLowerCase().replace(/\s+/g, '_') };
-        setFields(prev => [...prev, newField]);
+    const fetchMetadata = async () => {
+        try {
+            // Fetch Custom Fields
+            // Fetch Custom Fields
+            const fieldsData = await api.getCustomFields();
+
+            // Start with standard fields
+            let allFields = [...initialFields];
+
+            if (fieldsData.length > 0) {
+                // Map backend fields to frontend format
+                const mappedFields = fieldsData.map(f => ({
+                    id: f.key,       // Frontend ID (KEY)
+                    dbId: f.id,      // Backend ID (UUID)
+                    label: f.name,
+                    type: f.type,
+                    required: false
+                }));
+
+                // Merge custom fields
+                allFields = [...allFields, ...mappedFields];
+            }
+
+            setFields(allFields);
+
+            // Fetch Pipelines
+            const pipelinesData = await api.getPipelines();
+            setPipelines(pipelinesData);
+
+            // Map default pipeline stages to 'statuses'
+            const defaultPipeline = pipelinesData.find(p => p.isDefault) || pipelinesData[0];
+            if (defaultPipeline && defaultPipeline.stages) {
+                const mappedStatuses = defaultPipeline.stages.map(s => ({
+                    id: s.id, // Use UUID
+                    label: s.name,
+                    color: s.color,
+                    order: s.order
+                }));
+                setStatuses(mappedStatuses);
+            } else {
+                setStatuses(initialStatuses);
+            }
+        } catch (error) {
+            console.error('Error fetching metadata:', error);
+            setFields(initialFields);
+            setStatuses(initialStatuses);
+        }
     };
 
-    const removeField = (id) => {
-        setFields(prev => prev.filter(field => field.id !== id));
+    // FIELD ACTIONS
+    const addField = async (field) => {
+        try {
+            // Create in backend
+            const payload = {
+                name: field.label,
+                key: field.label.toLowerCase().replace(/\s+/g, '_'),
+                type: field.type,
+                entityType: 'lead'
+            };
+            const created = await api.createCustomField(payload);
+
+            // Update local state
+            setFields(prev => [...prev, {
+                id: created.key,
+                dbId: created.id,
+                label: created.name,
+                type: created.type,
+                required: false
+            }]);
+        } catch (error) {
+            console.error('Error adding field:', error);
+        }
     };
 
-    const updateEmailSettings = (settings) => {
-        setEmailSettings(settings);
+    const removeField = async (id) => {
+        const field = fields.find(f => f.id === id);
+        if (field && field.dbId) {
+            try {
+                await api.deleteCustomField(field.dbId);
+                setFields(prev => prev.filter(f => f.id !== id));
+            } catch (error) {
+                console.error('Error deleting field:', error);
+            }
+        } else {
+            // Fallback for verification/local-only fields
+            setFields(prev => prev.filter(f => f.id !== id));
+        }
     };
 
-    const bulkDeleteLeads = (ids) => {
-        // API call needed
-        ids.forEach(id => deleteLead(id));
+    const moveField = (id, direction) => {
+        setFields(prev => {
+            const index = prev.findIndex(f => f.id === id);
+            if (index === -1) return prev;
+            const newFields = [...prev];
+            if (direction === 'up' && index > 0) {
+                [newFields[index], newFields[index - 1]] = [newFields[index - 1], newFields[index]];
+            } else if (direction === 'down' && index < newFields.length - 1) {
+                [newFields[index], newFields[index + 1]] = [newFields[index + 1], newFields[index]];
+            }
+            return newFields;
+        });
     };
 
-    const updateLeadsStatusBulk = (ids, newStatus) => {
-        ids.forEach(id => updateLead(id, { status: newStatus }));
+    // PIPELINE ACTIONS
+    const addPipeline = async (name) => {
+        try {
+            const payload = { name, isDefault: pipelines.length === 0 };
+            const created = await api.createPipeline(payload);
+            setPipelines(prev => [...prev, created]);
+        } catch (error) {
+            console.error('Error adding pipeline:', error);
+        }
     };
+
+    const deletePipeline = async (id) => {
+        try {
+            await api.deletePipeline(id);
+            setPipelines(prev => prev.filter(p => p.id !== id));
+        } catch (error) {
+            console.error('Error deleting pipeline:', error);
+        }
+    };
+
+    // STATUS/STAGE ACTIONS
+    const addStatus = async (status) => {
+        // Find default pipeline
+        const defaultPipeline = pipelines.find(p => p.isDefault) || pipelines[0];
+        if (!defaultPipeline) {
+            console.error('No pipeline found to add stage to');
+            return;
+        }
+
+        try {
+            const payload = {
+                pipelineId: defaultPipeline.id,
+                name: status.label,
+                color: status.color, // Color string format
+                order: (statuses.length || 0) + 1
+            };
+            const created = await api.createStage(payload);
+
+            setStatuses(prev => [...prev, {
+                id: created.id,
+                label: created.name,
+                color: created.color,
+                order: created.order
+            }]);
+        } catch (error) {
+            console.error('Error adding stage:', error);
+        }
+    };
+
+    const deleteStatus = async (id) => {
+        try {
+            await api.deleteStage(id);
+            setStatuses(prev => prev.filter(s => s.id !== id));
+        } catch (error) {
+            console.error('Error deleting stage:', error);
+        }
+    };
+
+    // Unused in new logic but kept for interface compatibility
+    const updateStatus = (id, updates) => { };
 
     return (
         <CRMContext.Provider value={{
             leads,
-            loading, // Exposed loading
+            loading,
             fields,
             emailSettings,
             updateEmailSettings,
+            companyName,
+            updateCompanyName,
+
+            // Pipelines
+            pipelines,
+            addPipeline,
+            deletePipeline,
+
+            statuses,
+            addStatus,
+            updateStatus,
+            deleteStatus,
             addLead,
             updateLead,
             deleteLead,
             bulkDeleteLeads,
             updateLeadsStatusBulk,
+            restoreLead,
+            currentView,
+            setCurrentView,
             addTimelineEvent,
             deleteTimelineEvent,
             updateTimelineEvent,
@@ -354,7 +621,9 @@ export const CRMProvider = ({ children }) => {
             deleteContract,
             addPractice,
             addField,
-            removeField
+            removeField,
+            moveField,
+            isElectron
         }}>
             {children}
         </CRMContext.Provider>

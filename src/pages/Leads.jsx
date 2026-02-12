@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter, MoreVertical, Phone, Mail, Calendar, Send, LayoutList, LayoutGrid, Upload, Download, Clock, Car, MessageCircle, Bell, Trash2, CheckSquare, Square, Hash } from 'lucide-react';
+import { Plus, Search, Filter, MoreVertical, Phone, Mail, Calendar, Send, LayoutList, LayoutGrid, Upload, Download, Clock, Car, MessageCircle, Bell, Trash2, CheckSquare, Square, Hash, RefreshCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
 import { useCRM } from '../context/CRMContext';
 import { useToast } from '../context/ToastContext';
+import { openWhatsApp } from '../utils/whatsapp';
 import { useNotifications } from '../context/NotificationContext';
 import { useReminders } from '../context/RemindersContext';
 import LeadForm from '../components/leads/LeadForm';
@@ -13,7 +14,7 @@ import CSVMappingModal from '../components/leads/CSVMappingModal';
 import BulkEmailModal from '../components/leads/BulkEmailModal';
 
 const Leads = () => {
-    const { leads, addLead, fields, deleteLead, bulkDeleteLeads, updateLeadsStatusBulk } = useCRM();
+    const { leads, addLead, fields, deleteLead, bulkDeleteLeads, updateLeadsStatusBulk, statuses, currentView, setCurrentView, restoreLead } = useCRM();
     const { addToast } = useToast();
     const { addNotification } = useNotifications();
     const { addReminder } = useReminders();
@@ -50,10 +51,11 @@ const Leads = () => {
 
         const fullName = `${lead.firstName} ${lead.lastName}`.toLowerCase();
         const matchesSearch = fullName.includes(term) ||
-            lead.email.toLowerCase().includes(term);
+            (lead.email && lead.email.toLowerCase().includes(term));
 
-        const matchesModel = filterModel ? lead.data?.model?.toLowerCase().includes(filterModel.toLowerCase()) : true;
-        const matchesTime = filterTime ? lead.data?.contactTime === filterTime : true;
+        const leadData = lead.data?.data || lead.data || {};
+        const matchesModel = filterModel ? leadData.model?.toLowerCase().includes(filterModel.toLowerCase()) : true;
+        const matchesTime = filterTime ? leadData.contactTime === filterTime : true;
 
         return matchesSearch && matchesModel && matchesTime;
     });
@@ -118,9 +120,14 @@ const Leads = () => {
             header: true,
             skipEmptyLines: true,
             transformHeader: (h) => h.trim(),
-            complete: (results) => {
-                let count = 0;
-                results.data.forEach(row => {
+            complete: async (results) => {
+                let successCount = 0;
+                let failureCount = 0;
+
+                // Show initial toast
+                addToast(`Inizio importazione di ${results.data.length} righe...`, 'info');
+
+                for (const row of results.data) {
                     // Use mapping to extract data
                     // mapping is { crmFieldId: csvHeaderName }
 
@@ -141,30 +148,30 @@ const Leads = () => {
                             if (value) dynamicData[field.id] = value;
                         });
 
-                        // Add standard fields that are not dynamic but stored in data
-                        // (phone, model, contactTime, notes are in data object in current structure)
-                        // Wait, looking at addLead in previous code:
-                        // data: { phone, model, contactTime, notes }
-                        // These should be mapped too if they exist in fields or handled explicitly if they are "standard" but stored in data.
-                        // In CRMContext, initialFields includes phone, model, contactTime, notes.
-                        // So iterating fields is correct.
-
-                        addLead({
-                            firstName: firstName,
-                            lastName: getValue('lastName') || '',
-                            email: email,
-                            status: 'new',
-                            data: dynamicData
-                        });
-                        count++;
+                        try {
+                            await addLead({
+                                firstName: firstName,
+                                lastName: getValue('lastName') || '',
+                                email: email,
+                                status: 'new',
+                                data: dynamicData
+                            });
+                            successCount++;
+                        } catch (err) {
+                            console.error("Import failed for row:", row, err);
+                            failureCount++;
+                        }
+                    } else {
+                        // Skip invalid row (missing name/email)
+                        failureCount++;
                     }
-                });
+                }
 
-                if (count > 0) {
-                    addToast(`${count} lead importati con successo`, 'success');
-                    addNotification(`Importati ${count} nuovi lead da CSV`, 'success');
+                if (successCount > 0) {
+                    addToast(`${successCount} lead importati con successo` + (failureCount > 0 ? ` (${failureCount} falliti)` : ''), 'success');
+                    addNotification(`Importati ${successCount} nuovi lead da CSV`, 'success');
                 } else {
-                    addToast('Nessun lead valido trovato. Verifica la mappatura.', 'warning');
+                    addToast(`Nessun lead importato. ${failureCount} righe fallite.`, 'warning');
                 }
                 setPendingFile(null);
             },
@@ -189,26 +196,14 @@ const Leads = () => {
         document.body.removeChild(link);
     };
 
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'new': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-            case 'contacted': return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
-            case 'quote': return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
-            case 'order': return 'bg-green-500/10 text-green-500 border-green-500/20';
-            case 'lost': return 'bg-red-500/10 text-red-500 border-red-500/20';
-            default: return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
-        }
+    const getStatusColor = (statusId) => {
+        const found = statuses.find(s => s.id === statusId);
+        return found ? found.color : 'bg-slate-500/10 text-slate-500 border-slate-500/20';
     };
 
-    const getStatusLabel = (status) => {
-        switch (status) {
-            case 'new': return 'Da Contattare';
-            case 'contacted': return 'Contattato';
-            case 'quote': return 'Preventivo';
-            case 'order': return 'Ordine';
-            case 'lost': return 'Perso';
-            default: return status;
-        }
+    const getStatusLabel = (statusId) => {
+        const found = statuses.find(s => s.id === statusId);
+        return found ? found.label : statusId;
     };
 
     const handleEdit = (lead) => {
@@ -225,8 +220,12 @@ const Leads = () => {
         <div className="space-y-6 h-full flex flex-col custom-scrollbar pr-2">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
                 <div>
-                    <h1 className="text-3xl font-bold text-white mb-2">Leads</h1>
-                    <p className="text-slate-400">Gestisci i tuoi contatti e le opportunità.</p>
+                    <h1 className="text-3xl font-bold text-white mb-2">
+                        {currentView === 'trash' ? 'Cestino' : 'Leads'}
+                    </h1>
+                    <p className="text-slate-400">
+                        {currentView === 'trash' ? 'Gestisci i lead eliminati.' : 'Gestisci i tuoi contatti e le opportunità.'}
+                    </p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="glass-panel p-1 rounded-xl flex">
@@ -262,6 +261,14 @@ const Leads = () => {
                     </div>
 
                     <button
+                        onClick={() => setCurrentView(prev => prev === 'active' ? 'trash' : 'active')}
+                        className={`glass-button p-2 hover:text-white rounded-xl transition-all ${currentView === 'trash' ? 'text-red-400 bg-red-500/10 border-red-500/20' : 'text-slate-300'}`}
+                        title={currentView === 'trash' ? "Torna ai Lead" : "Vedi Cestino"}
+                    >
+                        {currentView === 'trash' ? <LayoutList className="w-5 h-5" /> : <Trash2 className="w-5 h-5" />}
+                    </button>
+
+                    <button
                         onClick={() => setIsFormOpen(true)}
                         className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-blue-900/20 hover:shadow-blue-900/40 font-medium"
                     >
@@ -283,6 +290,18 @@ const Leads = () => {
                             className="w-full glass-input rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all"
                         />
                     </div>
+                    <button
+                        onClick={toggleSelectAll}
+                        className={`p-2.5 border rounded-xl transition-all flex items-center gap-2 ${selectedLeads.length === filteredLeads.length && filteredLeads.length > 0 ? 'bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-900/20' : 'glass-button text-slate-400 hover:text-white'}`}
+                        title={selectedLeads.length === filteredLeads.length ? "Deseleziona tutto" : "Seleziona tutto"}
+                    >
+                        {selectedLeads.length === filteredLeads.length && filteredLeads.length > 0 ? (
+                            <CheckSquare className="w-5 h-5" />
+                        ) : (
+                            <Square className="w-5 h-5" />
+                        )}
+                        <span className="hidden md:inline font-medium">Seleziona Tutto</span>
+                    </button>
                     <button
                         onClick={() => setShowFilters(!showFilters)}
                         className={`p-2.5 border rounded-xl transition-all ${showFilters ? 'bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-900/20' : 'glass-button text-slate-400 hover:text-white'}`}
@@ -394,15 +413,32 @@ const Leads = () => {
                                                     <Mail className="w-3 h-3 flex-shrink-0" />
                                                     {lead.email}
                                                 </span>
-                                                <span className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-md whitespace-nowrap">
-                                                    <Phone className="w-3 h-3 flex-shrink-0" />
-                                                    {lead.data.phone}
-                                                </span>
+                                                {(() => {
+                                                    const leadData = lead.data?.data || lead.data || {};
+                                                    const rawPhone = lead.phone || (typeof leadData.phone === 'object' ? leadData.phone.phone : leadData.phone);
+                                                    const cleanPhone = rawPhone ? rawPhone.replace(/^p:/, '') : '';
+
+                                                    return cleanPhone ? (
+                                                        <span className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-md whitespace-nowrap">
+                                                            <Phone className="w-3 h-3 flex-shrink-0" />
+                                                            {cleanPhone}
+                                                        </span>
+                                                    ) : null;
+                                                })()}
+                                                {(() => {
+                                                    const leadData = lead.data?.data || lead.data || {};
+                                                    return leadData.contactTime ? (
+                                                        <span className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-md whitespace-nowrap">
+                                                            <Clock className="w-3 h-3 flex-shrink-0" />
+                                                            {leadData.contactTime}
+                                                        </span>
+                                                    ) : null;
+                                                })()}
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-2 flex-shrink-0 self-end md:self-auto ml-auto md:ml-0">
+                                    <div className="flex items-center gap-2 flex-shrink-0 self-end md:self-auto ml-auto md:ml-0 mt-3 md:mt-0">
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -418,46 +454,90 @@ const Leads = () => {
                                         >
                                             <Bell className="w-4 h-4" />
                                         </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                navigate(`/whatsapp?phone=${lead.data.phone}`);
-                                            }}
+                                        <a
+                                            href={`https://wa.me/${lead.data?.phone?.replace(/[^0-9]/g, '')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
                                             className="p-2 text-slate-400 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-all"
                                             title="Chatta su WhatsApp"
                                         >
                                             <MessageCircle className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setEmailModalOpen(lead);
-                                            }}
+                                        </a>
+                                        <a
+                                            href={`mailto:${lead.email}`}
+                                            onClick={(e) => e.stopPropagation()}
                                             className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
                                             title="Invia Email"
                                         >
                                             <Send className="w-4 h-4" />
-                                        </button>
-                                        <div className={`px-3 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${getStatusColor(lead.status)}`}>
-                                            {getStatusLabel(lead.status)}
-                                        </div>
+                                        </a>
+                                        <a
+                                            href={`tel:${lead.data?.data?.phone || lead.data?.phone}`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="p-2 text-slate-400 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-all"
+                                            title="Chiama"
+                                        >
+                                            <Phone className="w-4 h-4" />
+                                        </a>
+
+                                        {currentView === 'trash' ? (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (window.confirm('Ripristinare questo lead?')) {
+                                                        restoreLead(lead.id);
+                                                    }
+                                                }}
+                                                className="p-2 text-slate-400 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-all"
+                                                title="Ripristina Lead"
+                                            >
+                                                <RefreshCcw className="w-4 h-4" />
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (window.confirm('Eliminare questo lead?')) {
+                                                        deleteLead(lead.id);
+                                                    }
+                                                }}
+                                                className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                                                title="Elimina Lead"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    { /* Status label handled outside the flex group or alongside actions? 
+                                         Original code had it outside, but let's check structure. 
+                                         Looking at original, status label was AFTER send button.
+                                         I need to be careful with the target replacement block. */ }
+                                    <div className={`px-3 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${getStatusColor(lead.status)}`}>
+                                        {getStatusLabel(lead.status)}
                                     </div>
                                 </div>
 
+
                                 {/* Dynamic Fields Preview - Only show if there's data */}
-                                {Object.values(lead.data).some(v => v && v !== lead.data.phone) && (
-                                    <div className="mt-4 pt-3 border-t border-white/5 grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
-                                        {Object.entries(lead.data).map(([key, value]) => {
-                                            if (key === 'phone' || !value) return null;
-                                            return (
-                                                <div key={key} className="min-w-0">
-                                                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{key}</span>
-                                                    <p className="text-sm text-slate-300 truncate mt-0.5">{value}</p>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
+                                {
+                                    lead.data && Object.values(lead.data).some(v => v && v !== lead.data.phone) && (
+                                        <div className="mt-4 pt-3 border-t border-white/5 grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
+                                            {Object.entries(lead.data).map(([key, value]) => {
+                                                // STRICT exclusion of 'data' key to avoid raw JSON dump
+                                                if (key === 'phone' || key.toLowerCase() === 'data' || key === 'DOCUMENTS' || !value) return null;
+                                                return (
+                                                    <div key={key} className="min-w-0">
+                                                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{key}</span>
+                                                        <p className="text-sm text-slate-300 truncate mt-0.5">
+                                                            {typeof value === 'object' ? (value.label || value.value || JSON.stringify(value)) : value}
+                                                        </p>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )
+                                }
                             </div>
                         ))}
                     </div>
@@ -466,13 +546,17 @@ const Leads = () => {
                 )}
             </div>
 
-            {isFormOpen && (
-                <LeadForm onClose={handleCloseForm} initialData={editingLead} />
-            )}
+            {
+                isFormOpen && (
+                    <LeadForm onClose={handleCloseForm} initialData={editingLead} />
+                )
+            }
 
-            {emailModalOpen && (
-                <EmailModal lead={emailModalOpen} onClose={() => setEmailModalOpen(null)} />
-            )}
+            {
+                emailModalOpen && (
+                    <EmailModal lead={emailModalOpen} onClose={() => setEmailModalOpen(null)} />
+                )
+            }
 
             <CSVMappingModal
                 isOpen={mappingModalOpen}
@@ -485,16 +569,18 @@ const Leads = () => {
                 onConfirm={handleConfirmMapping}
             />
 
-            {showBulkEmail && (
-                <BulkEmailModal
-                    recipients={leads.filter(l => selectedLeads.includes(l.id))}
-                    onClose={() => {
-                        setShowBulkEmail(false);
-                        setSelectedLeads([]); // Optional: clear selection after send
-                    }}
-                />
-            )}
-        </div>
+            {
+                showBulkEmail && (
+                    <BulkEmailModal
+                        recipients={leads.filter(l => selectedLeads.includes(l.id))}
+                        onClose={() => {
+                            setShowBulkEmail(false);
+                            setSelectedLeads([]); // Optional: clear selection after send
+                        }}
+                    />
+                )
+            }
+        </div >
     );
 };
 

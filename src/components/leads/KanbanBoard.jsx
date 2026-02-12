@@ -1,20 +1,17 @@
 import React, { useState } from 'react';
-import { MoreVertical, Phone, Mail, Calendar } from 'lucide-react';
+import { MoreVertical, Phone, Mail, Calendar, MessageCircle } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 
-const COLUMNS = [
-    { id: 'new', title: 'Da Contattare', color: 'bg-blue-500' },
-    { id: 'contacted', title: 'Contattato', color: 'bg-yellow-500' },
-    { id: 'quote', title: 'Preventivo', color: 'bg-purple-500' },
-    { id: 'order', title: 'Ordine', color: 'bg-green-500' },
-    // 'lost' is hidden or separate? Let's include it for now or leave it out of the main flow.
-    // User didn't explicitly ask for 'Lost' column in Kanban, but it's good practice.
-    // Let's stick to the requested 4 phases.
-];
-
 const KanbanBoard = ({ onEditLead }) => {
-    const { leads, updateLead } = useCRM();
+    const { leads, updateLead, statuses } = useCRM();
     const [draggedLeadId, setDraggedLeadId] = useState(null);
+
+    // Map Context statuses to Kanban columns
+    const columns = statuses.map(s => ({
+        id: s.id,
+        title: s.label,
+        color: s.color.split(' ')[0].replace('/10', '') // Extract base color class for dot
+    }));
 
     const handleDragStart = (e, leadId) => {
         setDraggedLeadId(leadId);
@@ -39,8 +36,8 @@ const KanbanBoard = ({ onEditLead }) => {
     };
 
     return (
-        <div className="flex gap-6 overflow-x-auto pb-4 h-[calc(100vh-200px)] custom-scrollbar">
-            {COLUMNS.map(column => (
+        <div className="flex gap-6 overflow-x-auto pb-4 h-full custom-scrollbar">
+            {columns.map(column => (
                 <div
                     key={column.id}
                     className="flex-shrink-0 w-80 glass-panel rounded-2xl flex flex-col border-0 bg-white/5"
@@ -91,16 +88,38 @@ const KanbanBoard = ({ onEditLead }) => {
                                     </div>
 
                                     {(lead.data?.phone || lead.email) && (
-                                        <div className="flex gap-3 mt-3 pt-3 border-t border-white/5">
+                                        <div className="flex gap-2 mt-3 pt-3 border-t border-white/5">
                                             {lead.data?.phone && (
-                                                <div className="p-1.5 rounded-lg bg-white/5 text-slate-400 group-hover:text-green-400 transition-colors">
-                                                    <Phone className="w-3.5 h-3.5" />
-                                                </div>
+                                                <>
+                                                    <a
+                                                        href={`tel:${lead.data.phone}`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-green-400 hover:bg-green-500/10 transition-colors"
+                                                        title="Chiama"
+                                                    >
+                                                        <Phone className="w-3.5 h-3.5" />
+                                                    </a>
+                                                    <a
+                                                        href={`https://wa.me/${lead.data.phone.replace(/[^0-9]/g, '')}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-green-400 hover:bg-green-500/10 transition-colors"
+                                                        title="WhatsApp"
+                                                    >
+                                                        <MessageCircle className="w-3.5 h-3.5" />
+                                                    </a>
+                                                </>
                                             )}
                                             {lead.email && (
-                                                <div className="p-1.5 rounded-lg bg-white/5 text-slate-400 group-hover:text-blue-400 transition-colors">
+                                                <a
+                                                    href={`mailto:${lead.email}`}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                                                    title="Invia Email"
+                                                >
                                                     <Mail className="w-3.5 h-3.5" />
-                                                </div>
+                                                </a>
                                             )}
                                         </div>
                                     )}

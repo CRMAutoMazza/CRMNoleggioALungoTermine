@@ -26,7 +26,7 @@ const Login = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
-            <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700">
+            <div className="bg-slate-800 p-6 md:p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700">
                 <div className="text-center mb-8">
                     {localStorage.getItem('company_logo') ? (
                         <img

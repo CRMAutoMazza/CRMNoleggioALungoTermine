@@ -9,43 +9,11 @@ const Layout = ({ children }) => {
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const location = useLocation();
     const isWhatsApp = location.pathname === '/whatsapp';
-    const webviewRef = React.useRef(null);
-    const [isWebviewReady, setIsWebviewReady] = useState(false);
 
-    // Extract phone from URL query params
+    // Extract phone from URL query params for WhatsApp fallback
     const searchParams = new URLSearchParams(location.search);
     const phone = searchParams.get('phone');
-
-    React.useEffect(() => {
-        // Delay mounting webview slightly to prevent Electron renderer crashes
-        const timer = setTimeout(() => setIsWebviewReady(true), 100);
-        return () => clearTimeout(timer);
-    }, []);
-
-    React.useEffect(() => {
-        if (isWebviewReady && webviewRef.current) {
-            // If phone is present, we want to open that specific chat
-            if (phone) {
-                const cleanPhone = phone.replace(/\D/g, '');
-                const targetUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}`;
-                try {
-                    const currentUrl = webviewRef.current.getURL();
-                    // Only load if we are not already on that specific chat URL
-                    // This prevents reloading if the user navigates away and back to the same chat
-                    if (!currentUrl.includes(`phone=${cleanPhone}`)) {
-                        webviewRef.current.loadURL(targetUrl);
-                    }
-                } catch (e) {
-                    console.error("Webview error:", e);
-                }
-            }
-            // If no phone (just /whatsapp), we don't force a reload if we are already on web.whatsapp.com
-            // The webview will stay on the last chat or the main list
-        }
-    }, [phone, isWebviewReady]);
-
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const isElectron = window.navigator.userAgent.toLowerCase().includes('electron');
 
     return (
         <div className="flex h-screen overflow-hidden bg-transparent">
@@ -163,7 +131,7 @@ const Layout = ({ children }) => {
 
                 {/* Main Content */}
                 <main className="flex-1 overflow-auto p-4 md:p-6 md:pt-0 relative custom-scrollbar">
-                    {/* Persistent WhatsApp Webview - ELECTRON ONLY */}
+                    {/* Persistent WhatsApp Webview - WEB APP VERSION */}
                     <div
                         style={{
                             display: isWhatsApp ? 'flex' : 'none',
@@ -173,37 +141,30 @@ const Layout = ({ children }) => {
                         className="animate-in fade-in zoom-in-95 duration-300"
                     >
                         <div className="flex-1 glass-panel rounded-2xl overflow-hidden relative border-0">
-                            {isElectron ? (
-                                isWebviewReady ? (
-                                    <webview
-                                        ref={webviewRef}
-                                        src="https://web.whatsapp.com"
-                                        className="w-full h-full"
-                                        useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                                        allowpopups="true"
-                                        webpreferences="contextIsolation=false"
-                                    />
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4">
-                                        <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-                                        <p className="animate-pulse">Connessione sicura a WhatsApp...</p>
-                                    </div>
-                                )
-                            ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4 text-center p-6">
-                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                                        <MessageCircle className="w-8 h-8 text-green-600" />
-                                    </div>
-                                    <h3 className="text-xl font-bold text-slate-800">WhatsApp su Mobile</h3>
-                                    <p>La versione integrata di WhatsApp Web è disponibile solo su Desktop.</p>
+                            <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4 text-center p-6">
+                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                                    <MessageCircle className="w-8 h-8 text-green-600" />
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800">WhatsApp Web</h3>
+                                <p className="max-w-md">
+                                    Dal browser, puoi aprire WhatsApp Web in una nuova scheda o finestra.
+                                </p>
+                                <div className="flex gap-3 mt-2">
                                     <button
-                                        onClick={() => window.open('https://wa.me', '_system')}
-                                        className="mt-4 px-6 py-2 bg-green-600 text-white rounded-xl shadow-lg hover:bg-green-700 transition"
+                                        onClick={() => {
+                                            const url = `https://web.whatsapp.com/send?phone=${phone?.replace(/\D/g, '') || ''}`;
+                                            const width = 1000;
+                                            const height = 700;
+                                            const left = (window.screen.width - width) / 2;
+                                            const top = (window.screen.height - height) / 2;
+                                            window.open(url, 'whatsapp-popup', `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,status=yes`);
+                                        }}
+                                        className="px-6 py-2.5 bg-green-600 text-white rounded-xl shadow-lg hover:bg-green-700 transition font-medium flex items-center gap-2"
                                     >
-                                        Apri App WhatsApp
+                                        Apri WhatsApp Web
                                     </button>
                                 </div>
-                            )}
+                            </div>
                         </div>
                     </div>
 
