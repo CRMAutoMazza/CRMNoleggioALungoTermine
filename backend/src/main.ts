@@ -55,9 +55,9 @@ async function bootstrap() {
         });
         console.log('CORS Enabled for all origins');
 
-        // INCREASE BODY LIMIT (Fix for Offers Upload)
-        app.use(require('express').json({ limit: '50mb' }));
-        app.use(require('express').urlencoded({ limit: '50mb', extended: true }));
+        // INCREASE BODY LIMIT (Fix for Offers Upload - JSON inflation)
+        app.use(require('express').json({ limit: '200mb' }));
+        app.use(require('express').urlencoded({ limit: '200mb', extended: true }));
 
         // FIX: Force Port 3000 because Dockerfile EXPOSE 3000 dictates Railway routing,
         // even if Railway injects PORT=8080 variable.

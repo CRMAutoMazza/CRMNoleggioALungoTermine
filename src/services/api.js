@@ -421,7 +421,11 @@ export const api = {
             headers,
             body: JSON.stringify(data)
         });
-        if (!response.ok) throw new Error('Failed to save offers');
+        if (!response.ok) {
+            const text = await response.text();
+            console.error('Save Offers Failed:', response.status, text);
+            throw new Error(`Failed to save offers: ${response.status} ${text}`);
+        }
         return response.json();
     }
 };
