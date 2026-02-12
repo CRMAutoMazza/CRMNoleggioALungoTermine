@@ -147,3 +147,10 @@ model Reminder {
   emailSent   Boolean  @default(false)
   createdAt   DateTime @default(now())
 }
+
+model OffersSnapshot {
+  id        String   @id @default(uuid())
+  headers   Json     // Array of strings defining columns
+  rows      Json     // Array of arrays defining data
+  createdAt DateTime @default(now())
+}

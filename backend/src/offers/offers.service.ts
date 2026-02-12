@@ -1,45 +1,53 @@
 
-import { Injectable, BadRequestException } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class OffersService {
-    // Store offers in a JSON file in the Documents/AutoMazza_Data folder for persistence and consistency
-    private storagePath = path.join(process.env.USERPROFILE || process.env.HOME || '', 'Documents', 'AutoMazza_Data', 'offers.json');
-
-    constructor() {
-        this.ensureStorageExists();
-    }
-
-    private ensureStorageExists() {
-        // Ensure directory exists
-        const dir = path.dirname(this.storagePath);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        // Ensure file exists
-        if (!fs.existsSync(this.storagePath)) {
-            fs.writeFileSync(this.storagePath, JSON.stringify({ headers: [], data: [], updatedAt: new Date() }));
-        }
-    }
+    constructor(private readonly prisma: PrismaService) { }
 
     async getOffers() {
         try {
-            const content = await fs.promises.readFile(this.storagePath, 'utf8');
-            return JSON.parse(content);
+            // Get the latest snapshot
+            const snapshot = await this.prisma.offersSnapshot.findFirst({
+                orderBy: { createdAt: 'desc' }
+            });
+
+            if (!snapshot) {
+                return { headers: [], data: [] };
+            }
+
+            return {
+                headers: snapshot.headers,
+                data: snapshot.rows
+            };
         } catch (error) {
+            console.error('Error fetching offers:', error);
             return { headers: [], data: [] };
         }
     }
 
     async saveOffers(headers: string[], data: any[]) {
-        const payload = {
-            headers,
-            data,
-            updatedAt: new Date().toISOString()
-        };
-        await fs.promises.writeFile(this.storagePath, JSON.stringify(payload, null, 2));
-        return payload;
+        try {
+            // Create a new snapshot
+            const snapshot = await this.prisma.offersSnapshot.create({
+                data: {
+                    headers: headers || [],
+                    rows: data || []
+                }
+            });
+
+            // Optional: Cleanup old snapshots to verify keeps only last 10
+            // Not strictly necessary for MVP but good practice
+
+            return {
+                headers: snapshot.headers,
+                data: snapshot.rows,
+                updatedAt: snapshot.createdAt
+            };
+        } catch (error) {
+            console.error('Error saving offers:', error);
+            throw error;
+        }
     }
 }
