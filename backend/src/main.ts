@@ -44,10 +44,14 @@ async function bootstrap() {
         });
         console.log('CORS Enabled for all origins');
 
-        const port = process.env.PORT || 3000;
+        const port = Number(process.env.PORT) || 3000;
         console.log(`[MAIN] Attempting to listen on port: ${port}`);
 
         await app.listen(port, '0.0.0.0');
+
+        const server = app.getHttpServer();
+        const address = server.address();
+        console.log(`[MAIN] Server address:`, address);
         console.log(`[MAIN] Application is listening on: ${await app.getUrl()}`);
     } catch (error) {
         console.error('[MAIN] Error during bootstrap:', error);
