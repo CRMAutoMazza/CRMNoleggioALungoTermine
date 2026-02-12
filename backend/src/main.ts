@@ -55,8 +55,10 @@ async function bootstrap() {
         });
         console.log('CORS Enabled for all origins');
 
-        const port = Number(process.env.PORT) || 3000;
-        console.log(`[MAIN] Attempting to listen on port: ${port}`);
+        // FIX: Force Port 3000 because Dockerfile EXPOSE 3000 dictates Railway routing,
+        // even if Railway injects PORT=8080 variable.
+        const port = 3000;
+        console.log(`[MAIN] Attempting to listen on port: ${port} (FORCED)`);
 
         //         await app.listen(port, '0.0.0.0');
 
