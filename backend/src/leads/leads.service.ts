@@ -10,7 +10,7 @@ export class LeadsService implements OnModuleInit {
 
     async onModuleInit() {
         console.log('[INIT] Auto-Syncing Leads from WordPress...');
-        this.syncLeads(); // Initial sync
+        // this.syncLeads(); // Initial sync (Disabled to prevent startup timeout)
 
         // Sync every 60 seconds
         setInterval(() => {

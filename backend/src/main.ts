@@ -47,7 +47,7 @@ async function bootstrap() {
         const port = process.env.PORT || 3000;
         console.log(`[MAIN] Attempting to listen on port: ${port}`);
 
-        await app.listen(port, '0.0.0.0');
+        await app.listen(port);
         console.log(`[MAIN] Application is listening on: ${await app.getUrl()}`);
     } catch (error) {
         console.error('[MAIN] Error during bootstrap:', error);
