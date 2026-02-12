@@ -18,7 +18,7 @@ process.on('unhandledRejection', (reason: any, promise) => {
 });
 
 async function bootstrap() {
-    console.log('[MAIN] Starting bootstrap...');
+    console.log(`[MAIN] Starting bootstrap... (Attempt: ${new Date().toISOString()})`);
     try {
         // DEBUG LOGGING
         const fs = require('fs');
