@@ -18,6 +18,7 @@ process.on('unhandledRejection', (reason: any, promise) => {
 });
 
 async function bootstrap() {
+    console.log('[MAIN] Starting bootstrap...');
     try {
         // DEBUG LOGGING
         const fs = require('fs');
@@ -29,49 +30,32 @@ async function bootstrap() {
         fs.appendFileSync(logPath, `DATABASE_URL available: ${!!process.env.DATABASE_URL}\n`);
 
         const app = await NestFactory.create(AppModule);
+        console.log('[MAIN] NestFactory created.');
 
         // Simple Health Check for Railway
         app.getHttpAdapter().get('/', (req, res) => {
             res.send('Backend Online - AutoMazza CRM');
         });
-        console.log('[MAIN] Starting bootstrap...');
-        try {
-            // DEBUG LOGGING
-            const fs = require('fs');
-            const path = require('path');
-            const logPath = path.join(process.cwd(), 'startup_log.txt');
-            fs.writeFileSync(logPath, `Starting backend at ${new Date().toISOString()}\n`);
-            fs.appendFileSync(logPath, `CWD: ${process.cwd()}\n`);
-            fs.appendFileSync(logPath, `PORT: ${process.env.PORT}\n`);
-            fs.appendFileSync(logPath, `DATABASE_URL available: ${!!process.env.DATABASE_URL}\n`);
 
-            const app = await NestFactory.create(AppModule);
-            console.log('[MAIN] NestFactory created.');
+        app.enableCors({
+            origin: true,
+            methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+            credentials: true,
+        });
+        console.log('CORS Enabled for all origins');
 
-            // Simple Health Check for Railway
-            app.getHttpAdapter().get('/', (req, res) => {
-                res.send('Backend Online - AutoMazza CRM');
-            });
-            app.enableCors({
-                origin: true, // Allow any origin (including file://)
-                methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-                credentials: true,
-            });
-            console.log('CORS Enabled for all origins');
+        const port = process.env.PORT || 3000;
+        console.log(`[MAIN] Attempting to listen on port: ${port}`);
 
-            const port = process.env.PORT || 3000;
-            console.log(`[MAIN] Attempting to listen on port: ${port}`);
-
-            await app.listen(port, '0.0.0.0');
-            console.log(`[MAIN] Application is listening on: ${await app.getUrl()}`);
-        } catch (error) {
-            console.error('[MAIN] Error during bootstrap:', error);
-            const fs = require('fs');
-            const path = require('path');
-            const errPath = path.join(process.cwd(), 'startup_error.txt');
-            fs.writeFileSync(errPath, `ERROR: ${error.message}\nSTACK: ${error.stack}\n`);
-            process.exit(1);
-        }
+        await app.listen(port, '0.0.0.0');
+        console.log(`[MAIN] Application is listening on: ${await app.getUrl()}`);
+    } catch (error) {
+        console.error('[MAIN] Error during bootstrap:', error);
+        const fs = require('fs');
+        const path = require('path');
+        const errPath = path.join(process.cwd(), 'startup_error.txt');
+        fs.writeFileSync(errPath, `ERROR: ${error.message}\nSTACK: ${error.stack}\n`);
+        process.exit(1);
     }
+}
 bootstrap();
-    ```
